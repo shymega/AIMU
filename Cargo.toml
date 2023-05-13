@@ -1,0 +1,14 @@
+[package]
+name = "aimu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+autocxx = "0.25.0"
+bmi160 = "0.1.2"
+cxx = "1.0.94"
+evdev = "0.12.1"
+linux-embedded-hal = "0.3.2"
+
+[build-dependencies]
+autocxx-build = "0.25.0"

@@ -24,5 +24,5 @@
 - Configuration file and argument parsing
 
 ## Aknowledgements
-- [](https://github.com/JibbSmart/GamepadMotionHelpers)
-- [](https://github.com/qrasmont/bmi270)
+- [https://github.com/JibbSmart/GamepadMotionHelpers](https://github.com/JibbSmart/GamepadMotionHelpers)
+- [https://github.com/qrasmont/bmi270](https://github.com/qrasmont/bmi270)

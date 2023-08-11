@@ -1,14 +1,14 @@
 [package]
 name = "aimu"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-autocxx = "0.25.0"
-bmi160 = "0.1.2"
-cxx = "1.0.94"
+autocxx = "0.26.0"
+bmi270 = { git = "https://gitlab.com/awahab/bmi270.git", branch = "bmi260", version = "0.1.0" }
+cxx = "1.0.104"
 evdev = "0.12.1"
 linux-embedded-hal = "0.3.2"
 
 [build-dependencies]
-autocxx-build = "0.25.0"
+autocxx-build = "0.26.0"

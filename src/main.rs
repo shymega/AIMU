@@ -3,9 +3,7 @@
 
 extern crate linux_embedded_hal as hal;
 use autocxx::prelude::*;
-use bmi160::{
-    AccelerometerPowerMode, Bmi160, GyroscopePowerMode, Sensor3DData, SensorSelector, SlaveAddr,
-};
+use bmi270::{config::BMI260_CONFIG_FILE, Bmi270, Burst, I2cAddr, PwrCtrl};
 use evdev::{
     uinput::VirtualDevice, uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent,
     InputId, RelativeAxisType,
@@ -17,12 +15,8 @@ include_cpp! {
     safety!(unsafe_ffi)
 }
 
-const BITMASK_24: u32 = 0xffffff;
-
 fn main() -> Result<(), Box<dyn Error>> {
-    let acc_res: f32 = 4.0 / (u16::MAX as f32); // [g/bit] resolution, default range is +/-2 g
-    let gyr_res: f32 = 3000.0 / (u16::MAX as f32); // [deg/s/bit] resolution, default range is+/-2000 deg/s
-    const IMU_SEC_PER_TICK: f32 = 39e-6; // [s/tick]
+    const IMU_SEC_PER_TICK: f32 = 39.0625e-6; // [s/tick]
     let gyr_scale: f32 = 30.0; // [-] arbitrary scale factor
     let update_freq: f32 = 40.; // [Hz]
     let update_interval = Duration::from_micros((1e6 / update_freq) as u64);
@@ -31,14 +25,31 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut motion = ffi::GamepadMotion::new().within_unique_ptr();
 
-    let mut imu = Bmi160::new_with_i2c(
+    let mut imu = Bmi270::new_i2c(
         hal::I2cdev::new("/dev/i2c-2")?,
-        SlaveAddr::Alternative(true),
+        I2cAddr::Alternative,
+        Burst::Other(255),
     );
-    for i in 0..2 {
-        imu.set_accel_power_mode(AccelerometerPowerMode::Normal);
-        imu.set_gyro_power_mode(GyroscopePowerMode::Normal);
-    }
+    println!("chip_id: 0x{:x}", imu.get_chip_id().unwrap());
+
+    imu.init(&BMI260_CONFIG_FILE).unwrap();
+
+    let acc_range = 1 << (1 + imu.get_acc_range().unwrap() as u8); // [g] +/- range (i.e., half of span)
+    let gyr_range = 2000 >> (imu.get_gyr_range().unwrap().range as u8); // [deg/s] +/- range (i.e., half of span)
+
+    println!("acc_range: {}", acc_range);
+    println!("gyr_range: {}", gyr_range);
+
+    let acc_res: f32 = ((acc_range << 1) as f32) / (u16::MAX as f32); // [g/bit] resolution
+    let gyr_res: f32 = ((gyr_range << 1) as f32) / (u16::MAX as f32); // [deg/s/bit] resolution
+
+    let pwr_ctrl = PwrCtrl {
+        aux_en: false,
+        gyr_en: true,
+        acc_en: true,
+        temp_en: false,
+    };
+    imu.set_pwr_ctrl(pwr_ctrl).unwrap();
 
     let mut vdev = VirtualDeviceBuilder::new()?
         .name("aimu")
@@ -53,27 +64,24 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("vdev: {}", path.display());
     }
 
-    let sensel = SensorSelector::new().accel().gyro().time();
-    let mut t_pre: u32 = imu.data(sensel).unwrap().time.unwrap();
+    let mut t_pre: u32 = imu.get_sensor_time().unwrap();
 
     loop {
-        let data = imu.data(sensel).unwrap();
+        let data = imu.get_data().unwrap();
         let a: Vec<f32> = {
-            let a = data.accel.unwrap();
-            vec![a.x, a.y, a.z]
+            vec![data.acc.x, data.acc.y, data.acc.z]
                 .iter()
                 .map(|x| (*x as f32) * acc_res)
                 .collect()
         };
         let g: Vec<f32> = {
-            let g = data.gyro.unwrap();
-            vec![g.x, g.y, g.z]
+            vec![data.gyr.x, data.gyr.y, data.gyr.z]
                 .iter()
                 .map(|x| (*x as f32) * gyr_res)
                 .collect()
         };
-        let t = data.time.unwrap() as u32;
-        let dt = IMU_SEC_PER_TICK * ((BITMASK_24 & t.wrapping_sub(t_pre)) as f32);
+        let t = data.time;
+        let dt = IMU_SEC_PER_TICK * (t.wrapping_sub(t_pre) as f32);
         t_pre = t;
         // println!(
         //     "a: {}\t{}\t{}\n\

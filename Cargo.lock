@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "aimu"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "autocxx",
  "autocxx-build",
@@ -189,7 +189,7 @@ dependencies = [
 [[package]]
 name = "bmi270"
 version = "0.1.0"
-source = "git+https://gitlab.com/awahab/bmi270.git?branch=bmi260#5267f14c2e6e5d36db51f9d8fe05c04dc1030518"
+source = "git+https://gitlab.com/awahab/bmi270.git?branch=bmi260#a53acdba80b4f91f8e9a7c45b5e905170f46fca8"
 dependencies = [
  "embedded-hal",
  "fixedvec",

@@ -3,7 +3,10 @@
 
 extern crate linux_embedded_hal as hal;
 use autocxx::prelude::*;
-use bmi270::{config::BMI260_CONFIG_FILE, Bmi270, Burst, I2cAddr, PwrCtrl};
+use bmi270::{
+    config::{BMI160_CONFIG_FILE, BMI260_CONFIG_FILE},
+    Bmi270, Burst, I2cAddr, PwrCtrl,
+};
 use evdev::{
     uinput::VirtualDevice, uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent,
     InputId, RelativeAxisType,
@@ -84,6 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("chip_id: 0x{:x}", imu.get_chip_id().unwrap());
 
     match cfg.imu.model.as_str() {
+        "bmi160" => imu.init(&BMI160_CONFIG_FILE).unwrap(),
         "bmi260" => imu.init(&BMI260_CONFIG_FILE).unwrap(),
         _ => panic!("Unsupported model: {}", cfg.imu.model),
     };

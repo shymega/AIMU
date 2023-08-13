@@ -15,24 +15,79 @@ include_cpp! {
     safety!(unsafe_ffi)
 }
 
+#[derive(Debug)]
+struct ConfigAIMU {
+    imu: ConfigIMU,
+    device: ConfigDevice,
+    user: ConfigUser,
+}
+
+#[derive(Debug, Default)]
+struct ConfigIMU {
+    model: String,
+    i2c_dev: String,
+    i2c_addr: u8,
+}
+
+#[derive(Debug, Default)]
+struct ConfigDevice {
+    screen: f32,
+    orient: [u8; 9],
+}
+
+#[derive(Debug, Default)]
+struct ConfigUser {
+    scale: f32,
+    freq: f32,
+}
+
+impl ::std::default::Default for ConfigAIMU {
+    fn default() -> Self {
+        Self {
+            imu: ConfigIMU {
+                model: "bmi260".to_string(),
+                i2c_dev: "/dev/i2c-2".to_string(),
+                i2c_addr: 0x69,
+            },
+            device: ConfigDevice {
+                /// [deg] angle between keyboard and screen
+                screen: 135.,
+                orient: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+            },
+            user: ConfigUser {
+                /// [-] arbitrary scale factor
+                scale: 30.0,
+                /// [Hz] update frequency
+                freq: 40.0,
+            },
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    let cfg = ConfigAIMU::default();
     const IMU_SEC_PER_TICK: f32 = 39.0625e-6; // [s/tick]
-    let gyr_scale: f32 = 30.0; // [-] arbitrary scale factor
-    let update_freq: f32 = 40.; // [Hz]
-    let update_interval = Duration::from_micros((1e6 / update_freq) as u64);
-    let scr_angle: f32 = 135.; // [deg] angle between screen and IMU x-y plane
-    let sc = ((scr_angle - 90.) * std::f32::consts::PI / 180.).sin_cos();
+    let update_interval = Duration::from_micros((1e6 / cfg.user.freq) as u64);
+    let sc = ((cfg.device.screen - 90.) * std::f32::consts::PI / 180.).sin_cos();
 
     let mut motion = ffi::GamepadMotion::new().within_unique_ptr();
 
     let mut imu = Bmi270::new_i2c(
-        hal::I2cdev::new("/dev/i2c-2")?,
-        I2cAddr::Alternative,
+        hal::I2cdev::new(cfg.imu.i2c_dev)?,
+        // FIXME: find cleaner way to handle address
+        match cfg.imu.i2c_addr {
+            0x68 => I2cAddr::Default,
+            0x69 => I2cAddr::Alternative,
+            _ => I2cAddr::Alternative,
+        },
         Burst::Other(255),
     );
     println!("chip_id: 0x{:x}", imu.get_chip_id().unwrap());
 
-    imu.init(&BMI260_CONFIG_FILE).unwrap();
+    match cfg.imu.model.as_str() {
+        "bmi260" => imu.init(&BMI260_CONFIG_FILE).unwrap(),
+        _ => panic!("Unsupported model: {}", cfg.imu.model),
+    };
 
     let acc_range = 1 << (1 + imu.get_acc_range().unwrap() as u8); // [g] +/- range (i.e., half of span)
     let gyr_range = 2000 >> (imu.get_gyr_range().unwrap().range as u8); // [deg/s] +/- range (i.e., half of span)
@@ -84,11 +139,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let dt = IMU_SEC_PER_TICK * (t.wrapping_sub(t_pre) as f32);
         t_pre = t;
         // println!(
-        //     "a: {}\t{}\t{}\n\
-        //      g: {}\t{}\t{}\n\
-        //      t: {}\t dt={}",
+        //     "a: {}\t{}\t{}\ng: {}\t{}\t{}\nt: {}\tdt: {}",
         //     a[0], a[1], a[2], g[0], g[1], g[2], t, dt
         // );
+        // FIXME: is there a more elegant way to unpack arrays?
         motion.pin_mut().ProcessMotion(
             g[0].into(),
             g[1].into(),
@@ -99,27 +153,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             dt,
         );
 
-        //player space
-        // let (mut x, mut y, mut z): (f32, f32, f32) = (0.0, 0.0, 0.0);
-        // let xp: Pin<&mut f32> = Pin::new(&mut x);
-        // let yp: Pin<&mut f32> = Pin::new(&mut y);
-        // let zp: Pin<&mut f32> = Pin::new(&mut z);
-        // ////xp.as_mut().set(x);
-        // ////yp.as_mut().set(y);
-        // motion.pin_mut().GetPlayerSpaceGyro(xp, yp, 1.41);
-        // let (x, y) = (x as i32, y as i32);
-
-        //local space
-        let (mut gx, mut gy, mut gz): (f32, f32, f32) = (0.0, 0.0, 0.0);
-        let gxp: Pin<&mut f32> = Pin::new(&mut gx);
-        let gyp: Pin<&mut f32> = Pin::new(&mut gy);
-        let gzp: Pin<&mut f32> = Pin::new(&mut gz);
-        motion.pin_mut().GetCalibratedGyro(gxp, gyp, gzp);
-        // let x = (gx * gyr_scale * dt) as i32;
-        let x = ((gx * sc.1 - (-gz) * sc.0) * gyr_scale * dt) as i32;
-        let y = ((-gy) * gyr_scale * dt) as i32;
-        //let y = ((gy * sc.0 - gz * sc.1) * -gyr_scale * dt) as i32;
-        // println!("x={:5} y={:5}", x, y);
+        // TODO: pull out into user-selectable functions
+        // let (x, y) = player_space(&mut motion, cfg.user.scale);
+        let (x, y) = local_space(&mut motion, &sc, dt, cfg.user.scale);
+        // dbg!("x: {:5}\ty: {:5}", x, y);
 
         vdev.emit(&[
             InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_X.0, x),
@@ -128,4 +165,33 @@ fn main() -> Result<(), Box<dyn Error>> {
         sleep(update_interval);
     }
     Ok(())
+}
+
+fn local_space(
+    motion: &mut UniquePtr<ffi::GamepadMotion>,
+    sc: &(f32, f32),
+    dt: f32,
+    scale: f32,
+) -> (i32, i32) {
+    let (mut gx, mut gy, mut gz): (f32, f32, f32) = (0.0, 0.0, 0.0);
+    let gxp: Pin<&mut f32> = Pin::new(&mut gx);
+    let gyp: Pin<&mut f32> = Pin::new(&mut gy);
+    let gzp: Pin<&mut f32> = Pin::new(&mut gz);
+    motion.pin_mut().GetCalibratedGyro(gxp, gyp, gzp);
+    // let x = (gx * scale * dt) as i32;
+    let x = ((gx * sc.1 - (-gz) * sc.0) * scale * dt) as i32;
+    let y = ((-gy) * scale * dt) as i32;
+    //let y = ((gy * sc.0 - gz * sc.1) * -scale * dt) as i32;
+    (x, y)
+}
+
+fn player_space(motion: &mut UniquePtr<ffi::GamepadMotion>, scale: f32) -> (i32, i32) {
+    let (mut x, mut y, mut z): (f32, f32, f32) = (0.0, 0.0, 0.0);
+    let xp: Pin<&mut f32> = Pin::new(&mut x);
+    let yp: Pin<&mut f32> = Pin::new(&mut y);
+    let zp: Pin<&mut f32> = Pin::new(&mut z);
+    ////xp.as_mut().set(x);
+    ////yp.as_mut().set(y);
+    motion.pin_mut().GetPlayerSpaceGyro(xp, yp, 1.41);
+    ((x * scale) as i32, (y * scale) as i32)
 }

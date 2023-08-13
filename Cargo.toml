@@ -1,6 +1,8 @@
 [package]
 name = "aimu"
-version = "0.2.0"
+version = "0.2.1"
+author = "Adam Wahab"
+about = "IMU motion control."
 edition = "2021"
 
 [dependencies]
@@ -12,3 +14,4 @@ linux-embedded-hal = "0.3.2"
 
 [build-dependencies]
 autocxx-build = "0.26.0"
+

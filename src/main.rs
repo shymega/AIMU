@@ -65,7 +65,7 @@ impl Default for ConfigAIMU {
                 /// [Hz] update frequency
                 freq: 40.0,
                 /// frame of reference for processing motion control
-                space: "local".to_string(),
+                space: String::from("local"),
             },
         }
     }
@@ -107,6 +107,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         _ => panic!("Unsupported model: {}", cfg.imu.model),
     };
 
+    // TODO: BMI160 acc_range map is different (2g:3, 4g: 5, 8g: 8, 16g: 12)
     let acc_range = 1 << (1 + imu.get_acc_range().unwrap() as u8); // [g] +/- range (i.e., half of span)
     let gyr_range = 2000 >> (imu.get_gyr_range().unwrap().range as u8); // [deg/s] +/- range (i.e., half of span)
 
@@ -161,6 +162,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         //     a[0], a[1], a[2], g[0], g[1], g[2], t, dt
         // );
         // FIXME: is there a more elegant way to unpack arrays?
+        // TODO: BMI160 read order is ax,ay,az,gx,gy,gz - handle reversed g[],a[] order for compatibility.
         motion.pin_mut().ProcessMotion(
             g[0].into(),
             g[1].into(),

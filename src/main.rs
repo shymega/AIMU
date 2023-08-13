@@ -45,12 +45,12 @@ struct ConfigUser {
     space: String,
 }
 
-impl ::std::default::Default for ConfigAIMU {
+impl Default for ConfigAIMU {
     fn default() -> Self {
         Self {
             imu: ConfigIMU {
-                model: "bmi260".to_string(),
-                i2c_dev: "/dev/i2c-2".to_string(),
+                model: String::from("bmi260"),
+                i2c_dev: String::from("/dev/i2c-2"),
                 i2c_addr: 0x69,
             },
             device: ConfigDevice {

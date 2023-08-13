@@ -68,17 +68,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cfg = ConfigAIMU::default();
     const IMU_SEC_PER_TICK: f32 = 39.0625e-6; // [s/tick]
     let update_interval = Duration::from_micros((1e6 / cfg.user.freq) as u64);
-    let sc = ((cfg.device.screen - 90.) * std::f32::consts::PI / 180.).sin_cos();
+    let sico = ((cfg.device.screen - 90.) * std::f32::consts::PI / 180.).sin_cos();
 
     let mut motion = ffi::GamepadMotion::new().within_unique_ptr();
 
     let mut imu = Bmi270::new_i2c(
         hal::I2cdev::new(cfg.imu.i2c_dev)?,
-        // FIXME: find cleaner way to handle address
         match cfg.imu.i2c_addr {
             0x68 => I2cAddr::Default,
             0x69 => I2cAddr::Alternative,
-            _ => I2cAddr::Alternative,
+            _ => panic!("Invalid address: {}", cfg.imu.i2c_addr),
         },
         Burst::Other(255),
     );
@@ -92,8 +91,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let acc_range = 1 << (1 + imu.get_acc_range().unwrap() as u8); // [g] +/- range (i.e., half of span)
     let gyr_range = 2000 >> (imu.get_gyr_range().unwrap().range as u8); // [deg/s] +/- range (i.e., half of span)
 
-    println!("acc_range: {}", acc_range);
-    println!("gyr_range: {}", gyr_range);
+    println!("acc_range: ±{} g", acc_range);
+    println!("gyr_range:  ±{} °/s", gyr_range);
 
     let acc_res: f32 = ((acc_range << 1) as f32) / (u16::MAX as f32); // [g/bit] resolution
     let gyr_res: f32 = ((gyr_range << 1) as f32) / (u16::MAX as f32); // [deg/s/bit] resolution
@@ -155,7 +154,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // TODO: pull out into user-selectable functions
         // let (x, y) = player_space(&mut motion, cfg.user.scale);
-        let (x, y) = local_space(&mut motion, &sc, dt, cfg.user.scale);
+        let (x, y) = local_space(&mut motion, &sico, dt, cfg.user.scale);
         // dbg!("x: {:5}\ty: {:5}", x, y);
 
         vdev.emit(&[
@@ -169,17 +168,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn local_space(
     motion: &mut UniquePtr<ffi::GamepadMotion>,
-    sc: &(f32, f32),
+    sico: &(f32, f32),
     dt: f32,
     scale: f32,
 ) -> (i32, i32) {
     let (mut gx, mut gy, mut gz): (f32, f32, f32) = (0.0, 0.0, 0.0);
-    let gxp: Pin<&mut f32> = Pin::new(&mut gx);
-    let gyp: Pin<&mut f32> = Pin::new(&mut gy);
-    let gzp: Pin<&mut f32> = Pin::new(&mut gz);
-    motion.pin_mut().GetCalibratedGyro(gxp, gyp, gzp);
-    // let x = (gx * scale * dt) as i32;
-    let x = ((gx * sc.1 - (-gz) * sc.0) * scale * dt) as i32;
+    motion
+        .pin_mut()
+        .GetCalibratedGyro(Pin::new(&mut gx), Pin::new(&mut gy), Pin::new(&mut gz));
+    let x = ((gx * sico.1 - (-gz) * sico.0) * scale * dt) as i32;
     let y = ((-gy) * scale * dt) as i32;
     //let y = ((gy * sc.0 - gz * sc.1) * -scale * dt) as i32;
     (x, y)
@@ -187,11 +184,8 @@ fn local_space(
 
 fn player_space(motion: &mut UniquePtr<ffi::GamepadMotion>, scale: f32) -> (i32, i32) {
     let (mut x, mut y, mut z): (f32, f32, f32) = (0.0, 0.0, 0.0);
-    let xp: Pin<&mut f32> = Pin::new(&mut x);
-    let yp: Pin<&mut f32> = Pin::new(&mut y);
-    let zp: Pin<&mut f32> = Pin::new(&mut z);
-    ////xp.as_mut().set(x);
-    ////yp.as_mut().set(y);
-    motion.pin_mut().GetPlayerSpaceGyro(xp, yp, 1.41);
+    motion
+        .pin_mut()
+        .GetPlayerSpaceGyro(Pin::new(&mut x), Pin::new(&mut y), 1.41);
     ((x * scale) as i32, (y * scale) as i32)
 }

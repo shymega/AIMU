@@ -5,7 +5,7 @@ extern crate linux_embedded_hal as hal;
 use autocxx::prelude::*;
 use bmi270::{
     config::{BMI160_CONFIG_FILE, BMI260_CONFIG_FILE},
-    Bmi270, Burst, I2cAddr, PwrCtrl,
+    Bmi270, Burst, Cmd, I2cAddr, PwrCtrl,
 };
 use evdev::{
     uinput::VirtualDevice, uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent,
@@ -42,6 +42,7 @@ struct ConfigDevice {
 struct ConfigUser {
     scale: f32,
     freq: f32,
+    space: String,
 }
 
 impl ::std::default::Default for ConfigAIMU {
@@ -55,6 +56,7 @@ impl ::std::default::Default for ConfigAIMU {
             device: ConfigDevice {
                 /// [deg] angle between keyboard and screen
                 screen: 135.,
+                /// orientation array [xx, xy, xz, yx, yy, yz, zx, zy, zz]
                 orient: [1, 0, 0, 0, 1, 0, 0, 0, 1],
             },
             user: ConfigUser {
@@ -62,6 +64,8 @@ impl ::std::default::Default for ConfigAIMU {
                 scale: 30.0,
                 /// [Hz] update frequency
                 freq: 40.0,
+                /// frame of reference for processing motion control
+                space: "local".to_string(),
             },
         }
     }
@@ -71,9 +75,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cfg = ConfigAIMU::default();
     const IMU_SEC_PER_TICK: f32 = 39.0625e-6; // [s/tick]
     let update_interval = Duration::from_micros((1e6 / cfg.user.freq) as u64);
-    let sico = ((cfg.device.screen - 90.) * std::f32::consts::PI / 180.).sin_cos();
+    let sincos = ((cfg.device.screen - 90.) * std::f32::consts::PI / 180.).sin_cos();
 
     let mut motion = ffi::GamepadMotion::new().within_unique_ptr();
+
+    let motion_space = {
+        match cfg.user.space.as_str() {
+            "local" => local_space,
+            "player" => player_space,
+            _ => panic!("Unsupported motion space: {}", cfg.user.space),
+        }
+    };
 
     let mut imu = Bmi270::new_i2c(
         hal::I2cdev::new(cfg.imu.i2c_dev)?,
@@ -84,6 +96,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
         Burst::Other(255),
     );
+    imu.send_cmd(Cmd::SoftReset);
+    sleep(Duration::from_millis(10));
+
     println!("chip_id: 0x{:x}", imu.get_chip_id().unwrap());
 
     match cfg.imu.model.as_str() {
@@ -158,7 +173,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // TODO: pull out into user-selectable functions
         // let (x, y) = player_space(&mut motion, cfg.user.scale);
-        let (x, y) = local_space(&mut motion, &sico, dt, cfg.user.scale);
+        // let (x, y) = local_space(&mut motion, &sincos, dt, cfg.user.scale);
+        let (x, y) = motion_space(&mut motion, &sincos, dt, cfg.user.scale);
         // dbg!("x: {:5}\ty: {:5}", x, y);
 
         vdev.emit(&[
@@ -172,7 +188,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn local_space(
     motion: &mut UniquePtr<ffi::GamepadMotion>,
-    sico: &(f32, f32),
+    sincos: &(f32, f32),
     dt: f32,
     scale: f32,
 ) -> (i32, i32) {
@@ -180,13 +196,18 @@ fn local_space(
     motion
         .pin_mut()
         .GetCalibratedGyro(Pin::new(&mut gx), Pin::new(&mut gy), Pin::new(&mut gz));
-    let x = ((gx * sico.1 - (-gz) * sico.0) * scale * dt) as i32;
+    let x = ((gx * sincos.1 - (-gz) * sincos.0) * scale * dt) as i32;
     let y = ((-gy) * scale * dt) as i32;
     //let y = ((gy * sc.0 - gz * sc.1) * -scale * dt) as i32;
     (x, y)
 }
 
-fn player_space(motion: &mut UniquePtr<ffi::GamepadMotion>, scale: f32) -> (i32, i32) {
+fn player_space(
+    motion: &mut UniquePtr<ffi::GamepadMotion>,
+    sincos: &(f32, f32),
+    dt: f32,
+    scale: f32,
+) -> (i32, i32) {
     let (mut x, mut y, mut z): (f32, f32, f32) = (0.0, 0.0, 0.0);
     motion
         .pin_mut()

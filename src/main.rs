@@ -71,7 +71,6 @@ impl Default for ConfigAIMU {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cfg = ConfigAIMU::default();
-    const IMU_SEC_PER_TICK: f32 = 39.0625e-6; // [s/tick]
     let update_interval = Duration::from_micros((1e6 / cfg.user.freq) as u64);
     let sincos = ((cfg.device.screen - 90.) * std::f32::consts::PI / 180.).sin_cos();
 
@@ -85,7 +84,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let mut imu = imu::IMU<imu::BMI260>.new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
+    let mut imu = match cfg.imu.model.as_str() {
+        "bmi160" => imu::IMU::<imu::BMI160>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr),
+        "bmi260" => imu::IMU::<imu::BMI260>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr),
+        _ => panic!("Unsupported motion space: {}", cfg.user.space),
+        };
     imu.init();
 
     let mut vdev = VirtualDeviceBuilder::new()?
@@ -101,11 +104,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("vdev: {}", path.display());
     }
 
-    let mut t_pre: u32 = imu.get_sensor_time().unwrap();
+    let mut t_pre: u32 = imu.data().2;
 
     loop {
         let (a, g, t) = imu.data();
-        let dt = IMU_SEC_PER_TICK * (t.wrapping_sub(t_pre) as f32);
+        let dt = imu.dt(t_pre, t);
         t_pre = t;
         // println!(
         //     "a: {}\t{}\t{}\ng: {}\t{}\t{}\nt: {}\tdt: {}",
@@ -123,7 +126,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             dt,
         );
 
-        // TODO: pull out into user-selectable functions
         let (x, y) = motion_space(&mut motion, &sincos, dt, cfg.user.scale);
         // dbg!("x: {:5}\ty: {:5}", x, y);
 

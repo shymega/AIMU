@@ -4,20 +4,22 @@ use bmi270;
 use hal::i2cdev::core::I2CDevice;
 use std::{error::Error, thread::sleep, time::Duration};
 
-pub struct IMU<T, U> {
-    imu: U,
+pub struct IMU<T> {
+    imu: T,
     acc_res: f32,
     gyr_res: f32,
 }
 
-struct BMI160;
-struct BMI260;
+pub type BMI160 = bmi160::Bmi160<bmi160::interface::I2cInterface<hal::I2cdev>>;
+pub type BMI260 = bmi270::Bmi270<bmi270::interface::I2cInterface<hal::I2cdev>>;
 
-impl IMU<BMI260, bmi270::Bmi270<bmi270::interface::I2cInterface<I2C>>> {
-    pub fn new(&mut self, i2c_dev: String, i2c_addr: u8) -> Self {
+impl IMU<BMI260> {
+    const SEC_PER_TICK: f32 = 39e-6; // [s/tick]
+
+    pub fn new(i2c_dev: String, i2c_addr: u8) -> Self {
         IMU {
             imu: bmi270::Bmi270::new_i2c(
-                hal::I2cdev::new(i2c_dev)?,
+                hal::I2cdev::new(i2c_dev.as_str()).unwrap(),
                 match i2c_addr {
                     0x68 => bmi270::I2cAddr::Default,
                     0x69 => bmi270::I2cAddr::Alternative,
@@ -55,7 +57,7 @@ impl IMU<BMI260, bmi270::Bmi270<bmi270::interface::I2cInterface<I2C>>> {
         self.imu.set_pwr_ctrl(pwr_ctrl).unwrap();
     }
 
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         self.imu.send_cmd(bmi270::Cmd::SoftReset);
         sleep(Duration::from_millis(10));
     }
@@ -70,7 +72,7 @@ impl IMU<BMI260, bmi270::Bmi270<bmi270::interface::I2cInterface<I2C>>> {
         2000 >> (self.imu.get_gyr_range().unwrap().range as u8)
     }
 
-    pub fn data(self) -> (Vec<f32>, Vec<f32>, f32) {
+    pub fn data(&mut self) -> (Vec<f32>, Vec<f32>, u32) {
         let data = self.imu.get_data().unwrap();
         let a: Vec<f32> = {
             vec![data.acc.x, data.acc.y, data.acc.z]
@@ -87,15 +89,21 @@ impl IMU<BMI260, bmi270::Bmi270<bmi270::interface::I2cInterface<I2C>>> {
         let t = data.time;
         (a, g, t)
     }
+
+    pub fn dt(t0: u32, t1: u32) -> f32 {
+        IMU::<BMI260>::SEC_PER_TICK * (t1.wrapping_sub(t0) as f32)
+    }
 }
 
 impl IMU<BMI160> {
+    const SEC_PER_TICK: f32 = 39e-6; // [s/tick]
     const BITMASK_24: u32 = 0xffffff;
+    const SENSEL: bmi160::SensorSelector = bmi160::SensorSelector::new().accel().gyro().time();
 
-    pub fn new(&mut self, i2c_dev: str, i2c_addr: u8) -> Self {
-        IMU {
+    pub fn new(i2c_dev: String, i2c_addr: u8) -> Self {
+        IMU::<BMI160> {
             imu: bmi160::Bmi160::new_with_i2c(
-                hal::I2cdev::new(i2c_dev)?,
+                hal::I2cdev::new(i2c_dev.as_str()).unwrap(),
                 match i2c_addr {
                     0x68 => bmi160::SlaveAddr::default(),
                     0x69 => bmi160::SlaveAddr::Alternative(true),
@@ -112,6 +120,7 @@ impl IMU<BMI160> {
 
         self.reset();
 
+        // occasionally, first attempt doesn't take
         for _ in 0..2 {
             self.imu
                 .set_accel_power_mode(bmi160::AccelerometerPowerMode::Normal);
@@ -123,15 +132,13 @@ impl IMU<BMI160> {
         self.gyr_res = 3000.0 / (u16::MAX as f32); // [deg/s/bit] resolution
     }
 
-    pub fn reset(&mut self) {
-        //TODO
+    fn reset(&mut self) {
+        //TODO: write 0xB6 to 0x7E
         sleep(Duration::from_millis(10));
     }
 
-    pub fn data(self) -> (Vec<f32>, Vec<f32>, f32) {
-        //FIXME: call sensel once during init then cache it
-        let sensel = bmi160::SensorSelector::new().accel().gyro().time();
-        let data = self.imu.data(sensel).unwrap();
+    pub fn data(&mut self) -> (Vec<f32>, Vec<f32>, u32) {
+        let data = self.imu.data(IMU::<BMI160>::SENSEL).unwrap();
         let a: Vec<f32> = {
             let a = data.accel.unwrap();
             vec![a.x, a.y, a.z]
@@ -148,5 +155,9 @@ impl IMU<BMI160> {
         };
         let t = data.time.unwrap();
         (a, g, t)
+    }
+
+    pub fn dt(t0: u32, t1: u32) -> f32 {
+        IMU::<BMI160>::SEC_PER_TICK * ((IMU::<BMI160>::BITMASK_24 & t1.wrapping_sub(t0)) as f32)
     }
 }

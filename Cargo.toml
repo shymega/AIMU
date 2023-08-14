@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 autocxx = "0.26.0"
+bmi160 = "0.1.2"
 bmi270 = { git = "https://gitlab.com/awahab/bmi270.git", branch = "bmi260", version = "0.1.0" }
 cxx = "1.0.104"
 evdev = "0.12.1"

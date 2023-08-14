@@ -3,14 +3,12 @@
 
 extern crate linux_embedded_hal as hal;
 use autocxx::prelude::*;
-use bmi270::{
-    config::{BMI160_CONFIG_FILE, BMI260_CONFIG_FILE},
-    Bmi270, Burst, Cmd, I2cAddr, PwrCtrl,
-};
 use evdev::{
     uinput::VirtualDevice, uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent,
     InputId, RelativeAxisType,
 };
+mod imu;
+
 use std::{error::Error, pin::Pin, thread::sleep, time::Duration};
 include_cpp! {
     #include "GamepadMotion.hpp"
@@ -87,43 +85,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let mut imu = Bmi270::new_i2c(
-        hal::I2cdev::new(cfg.imu.i2c_dev)?,
-        match cfg.imu.i2c_addr {
-            0x68 => I2cAddr::Default,
-            0x69 => I2cAddr::Alternative,
-            _ => panic!("Invalid address: {}", cfg.imu.i2c_addr),
-        },
-        Burst::Other(255),
-    );
-    imu.send_cmd(Cmd::SoftReset);
-    sleep(Duration::from_millis(10));
-
-    println!("chip_id: 0x{:x}", imu.get_chip_id().unwrap());
-
-    match cfg.imu.model.as_str() {
-        "bmi160" => imu.init(&BMI160_CONFIG_FILE).unwrap(),
-        "bmi260" => imu.init(&BMI260_CONFIG_FILE).unwrap(),
-        _ => panic!("Unsupported model: {}", cfg.imu.model),
-    };
-
-    // TODO: BMI160 acc_range map is different (2g:3, 4g: 5, 8g: 8, 16g: 12)
-    let acc_range = 1 << (1 + imu.get_acc_range().unwrap() as u8); // [g] +/- range (i.e., half of span)
-    let gyr_range = 2000 >> (imu.get_gyr_range().unwrap().range as u8); // [deg/s] +/- range (i.e., half of span)
-
-    println!("acc_range: ±{} g", acc_range);
-    println!("gyr_range:  ±{} °/s", gyr_range);
-
-    let acc_res: f32 = ((acc_range << 1) as f32) / (u16::MAX as f32); // [g/bit] resolution
-    let gyr_res: f32 = ((gyr_range << 1) as f32) / (u16::MAX as f32); // [deg/s/bit] resolution
-
-    let pwr_ctrl = PwrCtrl {
-        aux_en: false,
-        gyr_en: true,
-        acc_en: true,
-        temp_en: false,
-    };
-    imu.set_pwr_ctrl(pwr_ctrl).unwrap();
+    let mut imu = imu::IMU<imu::BMI260>.new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
+    imu.init();
 
     let mut vdev = VirtualDeviceBuilder::new()?
         .name("aimu")
@@ -141,20 +104,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut t_pre: u32 = imu.get_sensor_time().unwrap();
 
     loop {
-        let data = imu.get_data().unwrap();
-        let a: Vec<f32> = {
-            vec![data.acc.x, data.acc.y, data.acc.z]
-                .iter()
-                .map(|x| (*x as f32) * acc_res)
-                .collect()
-        };
-        let g: Vec<f32> = {
-            vec![data.gyr.x, data.gyr.y, data.gyr.z]
-                .iter()
-                .map(|x| (*x as f32) * gyr_res)
-                .collect()
-        };
-        let t = data.time;
+        let (a, g, t) = imu.data();
         let dt = IMU_SEC_PER_TICK * (t.wrapping_sub(t_pre) as f32);
         t_pre = t;
         // println!(
@@ -174,8 +124,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
 
         // TODO: pull out into user-selectable functions
-        // let (x, y) = player_space(&mut motion, cfg.user.scale);
-        // let (x, y) = local_space(&mut motion, &sincos, dt, cfg.user.scale);
         let (x, y) = motion_space(&mut motion, &sincos, dt, cfg.user.scale);
         // dbg!("x: {:5}\ty: {:5}", x, y);
 

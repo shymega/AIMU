@@ -84,11 +84,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let mut imu = match cfg.imu.model.as_str() {
-        "bmi160" => imu::IMU::<imu::BMI160>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr),
-        "bmi260" => imu::IMU::<imu::BMI260>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr),
-        _ => panic!("Unsupported motion space: {}", cfg.user.space),
-        };
+    // let mut imu = match cfg.imu.model.as_str() {
+    // "bmi160" => imu::IMU::<imu::BMI160>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr),
+    // "bmi260" => imu::IMU::<imu::BMI260>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr),
+    // _ => panic!("Unsupported motion space: {}", cfg.user.space),
+    // };
+    let mut imu = imu::IMU::<imu::BMI260>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
     imu.init();
 
     let mut vdev = VirtualDeviceBuilder::new()?

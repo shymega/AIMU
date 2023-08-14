@@ -90,7 +90,7 @@ impl IMU<BMI260> {
         (a, g, t)
     }
 
-    pub fn dt(t0: u32, t1: u32) -> f32 {
+    pub fn dt(&self, t0: u32, t1: u32) -> f32 {
         IMU::<BMI260>::SEC_PER_TICK * (t1.wrapping_sub(t0) as f32)
     }
 }
@@ -157,7 +157,7 @@ impl IMU<BMI160> {
         (a, g, t)
     }
 
-    pub fn dt(t0: u32, t1: u32) -> f32 {
+    pub fn dt(self, t0: u32, t1: u32) -> f32 {
         IMU::<BMI160>::SEC_PER_TICK * ((IMU::<BMI160>::BITMASK_24 & t1.wrapping_sub(t0)) as f32)
     }
 }

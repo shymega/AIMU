@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 autocxx = "0.26.0"
-bmi160 = "0.1.2"
-bmi270 = { git = "https://gitlab.com/awahab/bmi270.git", branch = "bmi260", version = "0.1.0" }
+bmi160 = { version = "0.1.2", optional = true }
+bmi270 = { git = "https://gitlab.com/awahab/bmi270.git", branch = "bmi260", version = "0.1.0", optional = true }
 cxx = "1.0.104"
 evdev = "0.12.1"
 linux-embedded-hal = "0.3.2"
@@ -16,3 +16,7 @@ linux-embedded-hal = "0.3.2"
 [build-dependencies]
 autocxx-build = "0.26.0"
 
+[features]
+default = [ "bmi260" ]
+bmi160 = [ "dep:bmi160" ]
+bmi260 = [ "dep:bmi270" ]

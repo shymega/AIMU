@@ -4,9 +4,11 @@
 extern crate linux_embedded_hal as hal;
 use autocxx::prelude::*;
 use evdev::{
-    uinput::VirtualDevice, uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent,
-    InputId, RelativeAxisType,
+    self, uinput::VirtualDeviceBuilder, AbsInfo, AbsoluteAxisType, EventType, InputEvent,
+    InputEventKind, UinputAbsSetup,
 };
+use evdev::{uinput::VirtualDevice, AttributeSet, InputId, RelativeAxisType};
+
 mod imu;
 
 use std::{error::Error, pin::Pin, thread::sleep, time::Duration};
@@ -85,25 +87,71 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     // let mut imu = match cfg.imu.model.as_str() {
-    // "bmi160" => imu::IMU::<imu::BMI160>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr),
-    // "bmi260" => imu::IMU::<imu::BMI260>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr),
-    // _ => panic!("Unsupported motion space: {}", cfg.user.space),
+    //     // "bmi160" => imu::IMUs::BMI160(imu::IMU::<imu::BMI160I2C>::new(
+    //     //     cfg.imu.i2c_dev,
+    //     //     cfg.imu.i2c_addr,
+    //     // )),
+    //     // "bmi260" => imu::IMUs::BMI260(imu::IMU::<imu::BMI260I2C>::new(
+    //     //     cfg.imu.i2c_dev,
+    //     //     cfg.imu.i2c_addr,
+    //     // )),
+    //     _ => panic!("Unsupported motion space: {}", cfg.user.space),
     // };
-    let mut imu = imu::IMU::<imu::BMI260>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
+    // let mut imu: Box<dyn > = match cfg.imu.model.as_str() {
+    //     "bmi160" => Box::new(imu::IMU::<imu::BMI160I2C>::new(
+    //         cfg.imu.i2c_dev,
+    //         cfg.imu.i2c_addr,
+    //     )),
+    //     "bmi260" => Box::new(imu::IMU::<imu::BMI260I2C>::new(
+    //         cfg.imu.i2c_dev,
+    //         cfg.imu.i2c_addr,
+    //     )),
+    //     _ => panic!("Unsupported motion space: {}", cfg.user.space),
+    // };
+    #[cfg(feature = "bmi160")]
+    let mut imu = imu::IMU::<imu::BMI160I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
+    #[cfg(not(feature = "bmi160"))]
+    let mut imu = imu::IMU::<imu::BMI260I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
     imu.init();
 
-    let mut vdev = VirtualDeviceBuilder::new()?
-        .name("aimu")
-        .with_relative_axes(&AttributeSet::from_iter([
-            RelativeAxisType::REL_X,
-            RelativeAxisType::REL_Y,
-            RelativeAxisType::REL_WHEEL, // convince libinput
-        ]))?
-        .build()?;
-    for path in vdev.enumerate_dev_nodes_blocking()? {
-        let path = path?;
-        println!("vdev: {}", path.display());
-    }
+    // let mut vdev = VirtualDeviceBuilder::new()?
+    //     .name("aimu")
+    //     .with_relative_axes(&AttributeSet::from_iter([
+    //         RelativeAxisType::REL_X,
+    //         RelativeAxisType::REL_Y,
+    //         RelativeAxisType::REL_WHEEL, // convince libinput
+    //     ]))?
+    //     .build()?;
+    // for path in vdev.enumerate_dev_nodes_blocking()? {
+    //     let path = path?;
+    //     println!("vdev: {}", path.display());
+    // }
+
+    let mut dev_hw = {
+        let mut devices = evdev::enumerate().map(|t| t.1).collect::<Vec<_>>();
+        devices.reverse();
+        devices.into_iter().nth(0).unwrap()
+    };
+    println!("{dev_hw}");
+    let abs_setup = AbsInfo::new(0, 0, 0, 0, 0, 0);
+    let abs_ax: Vec<UinputAbsSetup> = dev_hw
+        .supported_absolute_axes()
+        .unwrap()
+        .iter()
+        .map(|ax| UinputAbsSetup::new(ax, abs_setup))
+        .collect();
+    let mut dev_vr = {
+        let mut dev_vr = VirtualDeviceBuilder::new()?
+            .name("AIMU")
+            .input_id(dev_hw.input_id())
+            .with_keys(&dev_hw.supported_keys().unwrap())?;
+        // .with_ff(&dev_hw.supported_ff().unwrap())?;
+        // .with_relative_axes(&dev_hw.supported_relative_axes().unwrap())?;
+        for ax in abs_ax {
+            dev_vr = dev_vr.with_absolute_axis(&ax)?
+        }
+        dev_vr.build().unwrap()
+    };
 
     let mut t_pre: u32 = imu.data().2;
 
@@ -130,10 +178,36 @@ fn main() -> Result<(), Box<dyn Error>> {
         let (x, y) = motion_space(&mut motion, &sincos, dt, cfg.user.scale);
         // dbg!("x: {:5}\ty: {:5}", x, y);
 
-        vdev.emit(&[
-            InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_X.0, x),
-            InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_Y.0, y),
+        // vdev.emit(&[
+        //     InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_X.0, x),
+        //     InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_Y.0, y),
+        // ])?;
+        let mut xya: [i32; 2] = [0, 0];
+        // for ev in dev_hw.fetch_events().unwrap() {
+        //     let evo = match ev.kind() {
+        //         InputEventKind::AbsAxis(AbsoluteAxisType::ABS_RX) => {
+        //             // println!("X: {}", ev.value());
+        //             xya[0] = ev.value().saturating_add(x);
+        //             continue;
+        //             // InputEvent::new(EventType::ABSOLUTE, ev.code(), xya[0])
+        //         }
+        //         InputEventKind::AbsAxis(AbsoluteAxisType::ABS_RY) => {
+        //             // println!("Y: {}", ev.value());
+        //             xya[1] = ev.value().saturating_add(y);
+        //             continue;
+        //             // InputEvent::new(EventType::ABSOLUTE, ev.code(), xya[1])
+        //         }
+        //         _ => ev,
+        //     };
+        //     dev_vr.emit(&[evo])?;
+        // }
+        dbg!((x, y));
+        dbg!(xya);
+        dev_vr.emit(&[
+            InputEvent::new(EventType::ABSOLUTE, AbsoluteAxisType::ABS_RX.0, xya[0]),
+            InputEvent::new(EventType::ABSOLUTE, AbsoluteAxisType::ABS_RY.0, xya[1]),
         ])?;
+
         sleep(update_interval);
     }
     Ok(())
@@ -151,7 +225,7 @@ fn local_space(
         .GetCalibratedGyro(Pin::new(&mut gx), Pin::new(&mut gy), Pin::new(&mut gz));
     let x = ((gx * sincos.1 - (-gz) * sincos.0) * scale * dt) as i32;
     let y = ((-gy) * scale * dt) as i32;
-    //let y = ((gy * sc.0 - gz * sc.1) * -scale * dt) as i32;
+    //let y = ((gy * sincos.0 - gz * sincos.1) * -scale * dt) as i32;
     (x, y)
 }
 

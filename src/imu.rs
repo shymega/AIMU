@@ -1,8 +1,21 @@
 extern crate linux_embedded_hal as hal;
-use bmi160;
-use bmi270;
 use hal::i2cdev::core::I2CDevice;
 use std::{error::Error, thread::sleep, time::Duration};
+
+#[cfg(feature = "bmi160")]
+use bmi160;
+#[cfg(feature = "bmi160")]
+pub type BMI160I2C = bmi160::Bmi160<bmi160::interface::I2cInterface<hal::I2cdev>>;
+
+#[cfg(not(feature = "bmi160"))]
+use bmi270;
+#[cfg(not(feature = "bmi160"))]
+pub type BMI260I2C = bmi270::Bmi270<bmi270::interface::I2cInterface<hal::I2cdev>>;
+
+// pub enum IMUs {
+//     BMI160(IMU<BMI160I2C>),
+//     BMI260(IMU<BMI260I2C>),
+// }
 
 pub struct IMU<T> {
     imu: T,
@@ -10,10 +23,77 @@ pub struct IMU<T> {
     gyr_res: f32,
 }
 
-pub type BMI160 = bmi160::Bmi160<bmi160::interface::I2cInterface<hal::I2cdev>>;
-pub type BMI260 = bmi270::Bmi270<bmi270::interface::I2cInterface<hal::I2cdev>>;
+#[cfg(feature = "bmi160")]
+impl IMU<BMI160I2C> {
+    const SEC_PER_TICK: f32 = 39e-6; // [s/tick]
+    const BITMASK_24: u32 = 0xffffff;
 
-impl IMU<BMI260> {
+    pub fn new(i2c_dev: String, i2c_addr: u8) -> Self {
+        IMU::<BMI160I2C> {
+            imu: bmi160::Bmi160::new_with_i2c(
+                hal::I2cdev::new(i2c_dev.as_str()).unwrap(),
+                match i2c_addr {
+                    0x68 => bmi160::SlaveAddr::default(),
+                    0x69 => bmi160::SlaveAddr::Alternative(true),
+                    _ => panic!("Invalid address: {}", i2c_addr),
+                },
+            ),
+            acc_res: 0.,
+            gyr_res: 0.,
+        }
+    }
+
+    pub fn init(&mut self) {
+        println!("chip_id: 0x{:x}", self.imu.chip_id().unwrap());
+
+        self.reset();
+
+        // occasionally, first attempt doesn't take
+        for _ in 0..2 {
+            self.imu
+                .set_accel_power_mode(bmi160::AccelerometerPowerMode::Normal);
+            self.imu
+                .set_gyro_power_mode(bmi160::GyroscopePowerMode::Normal);
+        }
+
+        self.acc_res = 4.0 / (u16::MAX as f32); // [g/bit] resolution
+        self.gyr_res = 3000.0 / (u16::MAX as f32); // [deg/s/bit] resolution
+    }
+
+    fn reset(&mut self) {
+        //TODO: write 0xB6 to 0x7E
+        sleep(Duration::from_millis(10));
+    }
+
+    pub fn data(&mut self) -> (Vec<f32>, Vec<f32>, u32) {
+        let sensel = bmi160::SensorSelector::new().accel().gyro().time();
+        let data = self.imu.data(sensel).unwrap();
+        let a: Vec<f32> = {
+            let a = data.accel.unwrap();
+            vec![a.x, a.y, a.z]
+                .iter()
+                .map(|x| (*x as f32) * self.acc_res)
+                .collect()
+        };
+        let g: Vec<f32> = {
+            let g = data.gyro.unwrap();
+            vec![g.x, g.y, g.z]
+                .iter()
+                .map(|x| (*x as f32) * self.gyr_res)
+                .collect()
+        };
+        let t = data.time.unwrap();
+        (a, g, t)
+    }
+
+    pub fn dt(&self, t0: u32, t1: u32) -> f32 {
+        IMU::<BMI160I2C>::SEC_PER_TICK
+            * ((IMU::<BMI160I2C>::BITMASK_24 & t1.wrapping_sub(t0)) as f32)
+    }
+}
+
+#[cfg(not(feature = "bmi160"))]
+impl IMU<BMI260I2C> {
     const SEC_PER_TICK: f32 = 39e-6; // [s/tick]
 
     pub fn new(i2c_dev: String, i2c_addr: u8) -> Self {
@@ -91,73 +171,6 @@ impl IMU<BMI260> {
     }
 
     pub fn dt(&self, t0: u32, t1: u32) -> f32 {
-        IMU::<BMI260>::SEC_PER_TICK * (t1.wrapping_sub(t0) as f32)
-    }
-}
-
-impl IMU<BMI160> {
-    const SEC_PER_TICK: f32 = 39e-6; // [s/tick]
-    const BITMASK_24: u32 = 0xffffff;
-    const SENSEL: bmi160::SensorSelector = bmi160::SensorSelector::new().accel().gyro().time();
-
-    pub fn new(i2c_dev: String, i2c_addr: u8) -> Self {
-        IMU::<BMI160> {
-            imu: bmi160::Bmi160::new_with_i2c(
-                hal::I2cdev::new(i2c_dev.as_str()).unwrap(),
-                match i2c_addr {
-                    0x68 => bmi160::SlaveAddr::default(),
-                    0x69 => bmi160::SlaveAddr::Alternative(true),
-                    _ => panic!("Invalid address: {}", i2c_addr),
-                },
-            ),
-            acc_res: 0.,
-            gyr_res: 0.,
-        }
-    }
-
-    pub fn init(&mut self) {
-        println!("chip_id: 0x{:x}", self.imu.chip_id().unwrap());
-
-        self.reset();
-
-        // occasionally, first attempt doesn't take
-        for _ in 0..2 {
-            self.imu
-                .set_accel_power_mode(bmi160::AccelerometerPowerMode::Normal);
-            self.imu
-                .set_gyro_power_mode(bmi160::GyroscopePowerMode::Normal);
-        }
-
-        self.acc_res = 4.0 / (u16::MAX as f32); // [g/bit] resolution
-        self.gyr_res = 3000.0 / (u16::MAX as f32); // [deg/s/bit] resolution
-    }
-
-    fn reset(&mut self) {
-        //TODO: write 0xB6 to 0x7E
-        sleep(Duration::from_millis(10));
-    }
-
-    pub fn data(&mut self) -> (Vec<f32>, Vec<f32>, u32) {
-        let data = self.imu.data(IMU::<BMI160>::SENSEL).unwrap();
-        let a: Vec<f32> = {
-            let a = data.accel.unwrap();
-            vec![a.x, a.y, a.z]
-                .iter()
-                .map(|x| (*x as f32) * self.acc_res)
-                .collect()
-        };
-        let g: Vec<f32> = {
-            let g = data.gyro.unwrap();
-            vec![g.x, g.y, g.z]
-                .iter()
-                .map(|x| (*x as f32) * self.gyr_res)
-                .collect()
-        };
-        let t = data.time.unwrap();
-        (a, g, t)
-    }
-
-    pub fn dt(self, t0: u32, t1: u32) -> f32 {
-        IMU::<BMI160>::SEC_PER_TICK * ((IMU::<BMI160>::BITMASK_24 & t1.wrapping_sub(t0)) as f32)
+        IMU::<BMI260I2C>::SEC_PER_TICK * (t1.wrapping_sub(t0) as f32)
     }
 }

@@ -2,130 +2,43 @@
 #![allow(dead_code)]
 
 extern crate linux_embedded_hal as hal;
-use autocxx::prelude::*;
 use evdev::{
-    self, uinput::VirtualDeviceBuilder, AbsInfo, AbsoluteAxisType, EventType, InputEvent,
-    InputEventKind, UinputAbsSetup,
+    self,
+    uinput::{VirtualDevice, VirtualDeviceBuilder, VirtualEventStream},
+    AbsInfo, AbsoluteAxisType, AttributeSet, Device, EventStream, EventType, InputEvent,
+    InputEventKind, InputId, RelativeAxisType, UinputAbsSetup,
 };
-use evdev::{uinput::VirtualDevice, AttributeSet, InputId, RelativeAxisType};
+use tokio::sync::mpsc::Sender;
 
+mod config;
 mod imu;
+mod motion;
 
 use std::{error::Error, pin::Pin, thread::sleep, time::Duration};
-include_cpp! {
-    #include "GamepadMotion.hpp"
-    generate!("GamepadMotion")
-    safety!(unsafe_ffi)
-}
 
-#[derive(Debug)]
-struct ConfigAIMU {
-    imu: ConfigIMU,
-    device: ConfigDevice,
-    user: ConfigUser,
-}
-
-#[derive(Debug, Default)]
-struct ConfigIMU {
-    model: String,
-    i2c_dev: String,
-    i2c_addr: u8,
-}
-
-#[derive(Debug, Default)]
-struct ConfigDevice {
-    screen: f32,
-    orient: [u8; 9],
-}
-
-#[derive(Debug, Default)]
-struct ConfigUser {
-    scale: f32,
-    freq: f32,
-    space: String,
-}
-
-impl Default for ConfigAIMU {
-    fn default() -> Self {
-        Self {
-            imu: ConfigIMU {
-                model: String::from("bmi260"),
-                i2c_dev: String::from("/dev/i2c-2"),
-                i2c_addr: 0x69,
-            },
-            device: ConfigDevice {
-                /// [deg] angle between keyboard and screen
-                screen: 135.,
-                /// orientation array [xx, xy, xz, yx, yy, yz, zx, zy, zz]
-                orient: [1, 0, 0, 0, 1, 0, 0, 0, 1],
-            },
-            user: ConfigUser {
-                /// [-] arbitrary scale factor
-                scale: 30.0,
-                /// [Hz] update frequency
-                freq: 40.0,
-                /// frame of reference for processing motion control
-                space: String::from("local"),
-            },
-        }
+async fn dev_event_sender(tx: Sender<InputEvent>, dev: Device) {
+    let mut events = dev.into_event_stream().unwrap();
+    loop {
+        let ev = events.next_event().await.unwrap();
+        tx.send(ev).await.unwrap();
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let cfg = ConfigAIMU::default();
-    let update_interval = Duration::from_micros((1e6 / cfg.user.freq) as u64);
-    let sincos = ((cfg.device.screen - 90.) * std::f32::consts::PI / 180.).sin_cos();
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let cfg = config::ConfigAIMU::default();
 
-    let mut motion = ffi::GamepadMotion::new().within_unique_ptr();
+    //TODO: implement runtime switch for selecting frame based on cfg.user.frame
+    // let mut motion = motion::Motion<motion::Frame::Local>::new(cfg.user.scale, cfg.device.screen);
+    let mut motion = motion::Motion::new(cfg.user.scale, cfg.device.screen);
 
-    let motion_space = {
-        match cfg.user.space.as_str() {
-            "local" => local_space,
-            "player" => player_space,
-            _ => panic!("Unsupported motion space: {}", cfg.user.space),
-        }
-    };
-
-    // let mut imu = match cfg.imu.model.as_str() {
-    //     // "bmi160" => imu::IMUs::BMI160(imu::IMU::<imu::BMI160I2C>::new(
-    //     //     cfg.imu.i2c_dev,
-    //     //     cfg.imu.i2c_addr,
-    //     // )),
-    //     // "bmi260" => imu::IMUs::BMI260(imu::IMU::<imu::BMI260I2C>::new(
-    //     //     cfg.imu.i2c_dev,
-    //     //     cfg.imu.i2c_addr,
-    //     // )),
-    //     _ => panic!("Unsupported motion space: {}", cfg.user.space),
-    // };
-    // let mut imu: Box<dyn > = match cfg.imu.model.as_str() {
-    //     "bmi160" => Box::new(imu::IMU::<imu::BMI160I2C>::new(
-    //         cfg.imu.i2c_dev,
-    //         cfg.imu.i2c_addr,
-    //     )),
-    //     "bmi260" => Box::new(imu::IMU::<imu::BMI260I2C>::new(
-    //         cfg.imu.i2c_dev,
-    //         cfg.imu.i2c_addr,
-    //     )),
-    //     _ => panic!("Unsupported motion space: {}", cfg.user.space),
-    // };
-    #[cfg(feature = "bmi160")]
-    let mut imu = imu::IMU::<imu::BMI160I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
-    #[cfg(not(feature = "bmi160"))]
+    //FIXME: implement runtime switch...pref. without Box<>
+    // #[cfg(feature = "bmi160")]
+    // let mut imu = imu::IMU::<imu::BMI160I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
+    // #[cfg(not(feature = "bmi160"))]
+    // let mut imu = imu::IMU::<imu::BMI260I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
     let mut imu = imu::IMU::<imu::BMI260I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
     imu.init();
-
-    // let mut vdev = VirtualDeviceBuilder::new()?
-    //     .name("aimu")
-    //     .with_relative_axes(&AttributeSet::from_iter([
-    //         RelativeAxisType::REL_X,
-    //         RelativeAxisType::REL_Y,
-    //         RelativeAxisType::REL_WHEEL, // convince libinput
-    //     ]))?
-    //     .build()?;
-    // for path in vdev.enumerate_dev_nodes_blocking()? {
-    //     let path = path?;
-    //     println!("vdev: {}", path.display());
-    // }
 
     let mut dev_hw = {
         let mut devices = evdev::enumerate().map(|t| t.1).collect::<Vec<_>>();
@@ -133,111 +46,64 @@ fn main() -> Result<(), Box<dyn Error>> {
         devices.into_iter().nth(0).unwrap()
     };
     println!("{dev_hw}");
-    let abs_setup = AbsInfo::new(0, 0, 0, 0, 0, 0);
-    let abs_ax: Vec<UinputAbsSetup> = dev_hw
-        .supported_absolute_axes()
-        .unwrap()
-        .iter()
-        .map(|ax| UinputAbsSetup::new(ax, abs_setup))
-        .collect();
+    dev_hw.grab();
     let mut dev_vr = {
         let mut dev_vr = VirtualDeviceBuilder::new()?
-            .name("AIMU")
+            .name("Microsoft X-Box 360 pad")
             .input_id(dev_hw.input_id())
             .with_keys(&dev_hw.supported_keys().unwrap())?;
         // .with_ff(&dev_hw.supported_ff().unwrap())?;
-        // .with_relative_axes(&dev_hw.supported_relative_axes().unwrap())?;
+        let abs_ax: Vec<UinputAbsSetup> = dev_hw
+            .supported_absolute_axes()
+            .unwrap()
+            .iter()
+            .map(|ax| UinputAbsSetup::new(ax, AbsInfo::new(0, 0, 0, 0, 0, 0)))
+            .collect();
         for ax in abs_ax {
             dev_vr = dev_vr.with_absolute_axis(&ax)?
         }
-        dev_vr.build().unwrap()
+        dev_vr.build()?
     };
 
-    let mut t_pre: u32 = imu.data().2;
+    let mut xy_abs = motion::BiAx::<i32> { x: 0, y: 0 };
+    let mut xy_mot = motion::BiAx::<i32> { x: 0, y: 0 };
+    let (tx0, mut rx0) = tokio::sync::mpsc::channel::<imu::Data<f32, f32>>(1);
+    let (tx1, mut rx1) = tokio::sync::mpsc::channel::<InputEvent>(100);
+
+    tokio::task::spawn(async move {
+        imu.sender(tx0, Duration::from_micros((1e6 / cfg.user.freq) as u64))
+            .await;
+    });
+
+    tokio::task::spawn(async move {
+        dev_event_sender(tx1, dev_hw).await;
+    });
 
     loop {
-        let (a, g, t) = imu.data();
-        let dt = imu.dt(t_pre, t);
-        t_pre = t;
-        // println!(
-        //     "a: {}\t{}\t{}\ng: {}\t{}\t{}\nt: {}\tdt: {}",
-        //     a[0], a[1], a[2], g[0], g[1], g[2], t, dt
-        // );
-        // FIXME: is there a more elegant way to unpack arrays?
-        // TODO: BMI160 read order is ax,ay,az,gx,gy,gz - handle reversed g[],a[] order for compatibility.
-        motion.pin_mut().ProcessMotion(
-            g[0].into(),
-            g[1].into(),
-            g[2].into(),
-            a[0].into(),
-            a[1].into(),
-            a[2].into(),
-            dt,
-        );
-
-        let (x, y) = motion_space(&mut motion, &sincos, dt, cfg.user.scale);
-        // dbg!("x: {:5}\ty: {:5}", x, y);
-
-        // vdev.emit(&[
-        //     InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_X.0, x),
-        //     InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_Y.0, y),
-        // ])?;
-        let mut xya: [i32; 2] = [0, 0];
-        // for ev in dev_hw.fetch_events().unwrap() {
-        //     let evo = match ev.kind() {
-        //         InputEventKind::AbsAxis(AbsoluteAxisType::ABS_RX) => {
-        //             // println!("X: {}", ev.value());
-        //             xya[0] = ev.value().saturating_add(x);
-        //             continue;
-        //             // InputEvent::new(EventType::ABSOLUTE, ev.code(), xya[0])
-        //         }
-        //         InputEventKind::AbsAxis(AbsoluteAxisType::ABS_RY) => {
-        //             // println!("Y: {}", ev.value());
-        //             xya[1] = ev.value().saturating_add(y);
-        //             continue;
-        //             // InputEvent::new(EventType::ABSOLUTE, ev.code(), xya[1])
-        //         }
-        //         _ => ev,
-        //     };
-        //     dev_vr.emit(&[evo])?;
-        // }
-        dbg!((x, y));
-        dbg!(xya);
-        dev_vr.emit(&[
-            InputEvent::new(EventType::ABSOLUTE, AbsoluteAxisType::ABS_RX.0, xya[0]),
-            InputEvent::new(EventType::ABSOLUTE, AbsoluteAxisType::ABS_RY.0, xya[1]),
-        ])?;
-
-        sleep(update_interval);
+        tokio::select! {
+            Some(data) = rx0.recv() => {
+                xy_mot = motion.process(data.a.into(), data.g.into(), data.t);
+                xy_abs.x = xy_abs.x.saturating_add(xy_mot.x);
+                xy_abs.y = xy_abs.y.saturating_add(xy_mot.y);
+                let evo = [InputEvent::new(EventType::ABSOLUTE, AbsoluteAxisType::ABS_RX.0, xy_abs.x),
+                           InputEvent::new(EventType::ABSOLUTE, AbsoluteAxisType::ABS_RY.0, xy_abs.y)];
+                dev_vr.emit(&evo)?;
+            },
+            Some(ev) = rx1.recv() => {
+                let evo = match ev.kind() {
+                    InputEventKind::AbsAxis(AbsoluteAxisType::ABS_RX) => {
+                        xy_abs.x = ev.value().saturating_add(xy_mot.x);
+                        InputEvent::new(EventType::ABSOLUTE, ev.code(), xy_abs.x)
+                    }
+                    InputEventKind::AbsAxis(AbsoluteAxisType::ABS_RY) => {
+                        xy_abs.y = ev.value().saturating_add(xy_mot.y);
+                        InputEvent::new(EventType::ABSOLUTE, ev.code(), xy_abs.y)
+                    }
+                    _ => ev,
+                };
+                dev_vr.emit(&[evo])?;
+            }
+        }
     }
     Ok(())
-}
-
-fn local_space(
-    motion: &mut UniquePtr<ffi::GamepadMotion>,
-    sincos: &(f32, f32),
-    dt: f32,
-    scale: f32,
-) -> (i32, i32) {
-    let (mut gx, mut gy, mut gz): (f32, f32, f32) = (0.0, 0.0, 0.0);
-    motion
-        .pin_mut()
-        .GetCalibratedGyro(Pin::new(&mut gx), Pin::new(&mut gy), Pin::new(&mut gz));
-    let x = ((gx * sincos.1 - (-gz) * sincos.0) * scale * dt) as i32;
-    let y = ((-gy) * scale * dt) as i32;
-    //let y = ((gy * sincos.0 - gz * sincos.1) * -scale * dt) as i32;
-    (x, y)
-}
-
-fn player_space(
-    motion: &mut UniquePtr<ffi::GamepadMotion>,
-    sincos: &(f32, f32),
-    dt: f32,
-    scale: f32,
-) -> (i32, i32) {
-    let (mut x, mut y, mut z): (f32, f32, f32) = (0.0, 0.0, 0.0);
-    motion
-        .pin_mut()
-        .GetPlayerSpaceGyro(Pin::new(&mut x), Pin::new(&mut y), 1.41);
-    ((x * scale) as i32, (y * scale) as i32)
 }

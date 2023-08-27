@@ -15,6 +15,7 @@ pub enum Frame {
     Player,
 }
 
+#[derive(Debug, Default)]
 pub struct BiAx<T> {
     pub x: T,
     pub y: T,
@@ -31,7 +32,7 @@ impl Motion {
         Self {
             motion: ffi::GamepadMotion::new().within_unique_ptr(),
             scale,
-            sincos: ((screen - 90.) * PI / 180.).sin_cos(),
+            sincos: (screen * PI / 180.).sin_cos(),
         }
     }
 

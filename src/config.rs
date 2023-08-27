@@ -34,8 +34,8 @@ impl Default for ConfigAIMU {
                 i2c_addr: 0x69,
             },
             device: ConfigDevice {
-                /// [deg] angle between keyboard and screen
-                screen: 135.,
+                /// [deg] acute angle between plane of keyboard and rear of screen
+                screen: 45.,
                 /// orientation array [xx, xy, xz, yx, yy, yz, zx, zy, zz]
                 orient: [1, 0, 0, 0, 1, 0, 0, 0, 1],
             },

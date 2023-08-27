@@ -1,6 +1,6 @@
 extern crate linux_embedded_hal as hal;
 // use hal::i2cdev::core::I2CDevice;
-use std::{error::Error, ops::Mul, thread::sleep, time::Duration};
+use std::{ops::Mul, thread::sleep, time::Duration};
 use tokio::sync::mpsc::Sender;
 
 // #[cfg(feature = "bmi160")]
@@ -18,7 +18,7 @@ pub enum IMUs {
     BMI260(IMU<BMI260I2C>),
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct TriAx<T> {
     x: T,
     y: T,
@@ -58,7 +58,7 @@ impl<T> Into<[T; 3]> for TriAx<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Data<T, U> {
     pub a: TriAx<T>,
     pub g: TriAx<T>,
@@ -79,11 +79,12 @@ where
     }
 }
 
+#[derive(Debug, Default)]
 pub struct IMU<T> {
     imu: T,
-    t: u32,
     acc_res: f32,
     gyr_res: f32,
+    t: u32,
 }
 
 // #[cfg(feature = "bmi160")]

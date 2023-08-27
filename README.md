@@ -1,8 +1,9 @@
 # AIMU
 
 - Userspace IMU-assisted aiming for Linux.
-- Maps gyro-motion to virtual mouse movements.
-- Accounts for angle between screen and keyboard (configurable in code).
+- Creates virtual gamepad based on an existing connected gamepad.
+- Maps accelerometer+gyroscope motion to virtual gamepad movements.
+- Accounts for angle between screen and keyboard (configurable).
 
 ## Win Max 2 branch support
 |2022 / BMI160| 2023 / BMI260|
@@ -20,7 +21,8 @@
    ```
 
 ## TODO
-- Virtual gamepad/joystick
+- Merge BMI160 and BMI260 branches
+- Refine virtual gamepad/joystick
 - Configuration file and argument parsing
 
 ## Aknowledgements

@@ -49,7 +49,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     dev_hw.grab();
     let mut dev_vr = {
         let mut dev_vr = VirtualDeviceBuilder::new()?
-            .name("Microsoft X-Box 360 pad")
+            .name("AIMU")
+            // .name("Microsoft X-Box 360 pad")
             .input_id(dev_hw.input_id())
             .with_keys(&dev_hw.supported_keys().unwrap())?;
         // .with_ff(&dev_hw.supported_ff().unwrap())?;
@@ -93,10 +94,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let evo = match ev.kind() {
                     InputEventKind::AbsAxis(AbsoluteAxisType::ABS_RX) => {
                         xy_abs.x = ev.value().saturating_add(xy_mot.x);
+                        xy_mot.x = 0;
                         InputEvent::new(EventType::ABSOLUTE, ev.code(), xy_abs.x)
                     }
                     InputEventKind::AbsAxis(AbsoluteAxisType::ABS_RY) => {
                         xy_abs.y = ev.value().saturating_add(xy_mot.y);
+                        xy_mot.y = 0;
                         InputEvent::new(EventType::ABSOLUTE, ev.code(), xy_abs.y)
                     }
                     _ => ev,

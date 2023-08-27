@@ -41,7 +41,7 @@ impl Default for ConfigAIMU {
             },
             user: ConfigUser {
                 /// [-] arbitrary scale factor
-                scale: 30.0,
+                scale: 5000.0,
                 /// [Hz] update frequency
                 freq: 40.0,
                 /// frame of reference for processing motion control

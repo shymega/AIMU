@@ -40,12 +40,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut imu = imu::IMU::<imu::BMI260I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
     imu.init();
 
-    let mut dev_hw = {
-        let mut devices = evdev::enumerate().map(|t| t.1).collect::<Vec<_>>();
-        devices.reverse();
-        devices.into_iter().nth(0).unwrap()
-    };
-    println!("{dev_hw}");
+    let mut dev_hw = evdev::enumerate()
+        .map(|t| t.1)
+        .find(|d| d.name().unwrap() == "Microsoft X-Box 360 pad")
+        .unwrap();
+    println!("{}", dev_hw);
     dev_hw.grab();
     let mut dev_vr = {
         let mut dev_vr = VirtualDeviceBuilder::new()?

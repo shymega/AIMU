@@ -10,6 +10,8 @@ mod config;
 mod imu;
 mod motion;
 
+use imu::IMU;
+
 use std::{error::Error, thread::sleep, time::Duration};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -24,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let mut imu = imu::IMU::<imu::BMI160I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
     // #[cfg(not(feature = "bmi160"))]
     // let mut imu = imu::IMU::<imu::BMI260I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
-    let mut imu = imu::IMU::<imu::BMI260I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
+    let mut imu: imu::BMI260 = imu::IMU::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
     imu.init();
 
     let mut dev_vr = VirtualDeviceBuilder::new()?

@@ -1,28 +1,23 @@
 # AIMU
 
 - Userspace IMU-assisted aiming for Linux.
-- Creates virtual gamepad based on an existing connected gamepad.
-- Maps accelerometer+gyroscope motion to virtual gamepad movements.
+- Creates virtual mouse.
+- Maps accelerometer+gyroscope motion to virtual mouse movements.
 - Accounts for angle between screen and keyboard (configurable).
-
-## Win Max 2 branch support
-|2022 / BMI160| 2023 / BMI260|
-|---|---|
-|`master` |`bmi260`|
 
 ## Usage
 1. Disable `bmi160_i2c` and `bmi160_core` kernel modules.
 1. Enable `i2c_dev` kernel module.
 1. Add user to `i2c` group.
-1. Tweak `gyr_scale`, `update_freq`, `scr_angle` to taste.
+1. Tweak `gyr_scale`, `update_freq`, `scr_angle` in `src/config.rs` to taste.
 1. ```shell
-   cargo build
-   cargo run
+   cargo run --features bmi160
+   # or
+   cargo run --features bmi260
    ```
 
 ## TODO
-- Merge BMI160 and BMI260 branches
-- Refine virtual gamepad/joystick
+- Refine virtual gamepad/joystick (separate branch)
 - Configuration file and argument parsing
 
 ## Aknowledgements

@@ -12,13 +12,14 @@ bmi270 = { git = "https://gitlab.com/awahab/bmi270.git", branch = "bmi260", vers
 cxx = "1.0.104"
 linux-embedded-hal = "0.3.2"
 evdev = { version = "0.12.1", features = ["tokio"] }
-tokio = { version = "1.32.0", features = ["rt", "macros", "sync", "time"] }
+tokio = { version = "1.32.0", features = ["rt", "macros", "sync", "time"], optional = true }
 
 [build-dependencies]
 autocxx-build = "0.26.0"
 
 [features]
-default = ["dep:bmi160", "dep:bmi270"]
-# default = ["bmi260"]
-# bmi160 = ["dep:bmi160"]
-# bmi260 = ["dep:bmi270"]
+# default = ["bmi160", "bmi270"]
+default = ["bmi260"]
+bmi160 = ["dep:bmi160"]
+bmi260 = ["dep:bmi270"]
+gamepad = ["dep:tokio"]

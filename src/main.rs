@@ -8,6 +8,10 @@ use evdev::{
 
 mod config;
 mod imu;
+#[cfg(feature = "bmi160")]
+mod imu_bmi160;
+#[cfg(feature = "bmi260")]
+mod imu_bmi260;
 mod motion;
 
 use imu::IMU;
@@ -21,12 +25,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let mut motion = motion::Motion<motion::Frame::Local>::new(cfg.user.scale, cfg.device.screen);
     let mut motion = motion::Motion::new(cfg.user.scale, cfg.device.screen);
 
-    //FIXME: implement runtime switch...pref. without Box<>
-    // #[cfg(feature = "bmi160")]
-    // let mut imu = imu::IMU::<imu::BMI160I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
-    // #[cfg(not(feature = "bmi160"))]
-    // let mut imu = imu::IMU::<imu::BMI260I2C>::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
-    let mut imu: imu::BMI260 = imu::IMU::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
+    //FIXME: implement compiletime switch
+    #[cfg(feature = "bmi160")]
+    let mut imu: imu_bmi160::BMI160 = imu::IMU::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
+    #[cfg(feature = "bmi260")]
+    let mut imu: imu_bmi260::BMI260 = imu::IMU::new(cfg.imu.i2c_dev, cfg.imu.i2c_addr);
     imu.init();
 
     let mut dev_vr = VirtualDeviceBuilder::new()?
@@ -34,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_relative_axes(&AttributeSet::from_iter([
             RelativeAxisType::REL_X,
             RelativeAxisType::REL_Y,
-            RelativeAxisType::REL_WHEEL, // convince libinput
+            RelativeAxisType::REL_WHEEL, // convinces libinput
         ]))?
         .build()?;
 

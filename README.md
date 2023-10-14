@@ -11,9 +11,9 @@
 1. Add user to `i2c` group.
 1. Tweak `gyr_scale`, `update_freq`, `scr_angle` in `src/config.rs` to taste.
 1. ```shell
-   cargo run --features bmi160
+   cargo run --release --features bmi160
    # or
-   cargo run --features bmi260
+   cargo run --release --features bmi260
    ```
 
 ## TODO

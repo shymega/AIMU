@@ -3,6 +3,8 @@ name = "aimu"
 version = "0.2.1"
 author = "Adam Wahab"
 about = "IMU motion control."
+license-file = "LICENSE"
+repository = "https://gitlab.com/awahab/aimu"
 edition = "2021"
 
 [dependencies]

@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use autocxx::prelude::*;
-use std::{f32::consts::PI, pin::Pin};
+use std::pin::Pin;
 
 include_cpp! {
     #include "GamepadMotion.hpp"
@@ -25,14 +25,16 @@ pub struct Motion {
     motion: UniquePtr<ffi::GamepadMotion>,
     scale: f32,
     sincos: (f32, f32),
+    frame: Frame,
 }
 
 impl Motion {
-    pub fn new(scale: f32, screen: f32) -> Self {
+    pub fn new(scale: f32, screen: f32, frame: Frame) -> Self {
         Self {
             motion: ffi::GamepadMotion::new().within_unique_ptr(),
             scale,
-            sincos: (screen * PI / 180.).sin_cos(),
+            sincos: screen.to_radians().sin_cos(),
+            frame,
         }
     }
 

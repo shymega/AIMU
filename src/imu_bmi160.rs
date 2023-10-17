@@ -36,13 +36,17 @@ impl<T: From<i16>, U: From<u32>> From<bmi160::Data> for Data<T, U> {
 impl BMI<BMI160I2C> {
     const SEC_PER_TICK: f32 = 39e-6; // [s/tick]
     const BITMASK_24: u32 = 0xffffff;
+
+    fn dt(&self, t: u32) -> f32 {
+        Self::SEC_PER_TICK * ((Self::BITMASK_24 & t.wrapping_sub(self.t)) as f32)
+    }
 }
 
-impl IMU<IMUError> for BMI<BMI160I2C> {
-    fn new(i2c_dev: &str, i2c_addr: u8) -> Self {
-        Self {
+impl IMU for BMI<BMI160I2C> {
+    fn new(i2c_dev: &str, i2c_addr: u8) -> Result<Self, IMUError> {
+        Ok(Self {
             drv: bmi160::Bmi160::new_with_i2c(
-                hal::I2cdev::new(i2c_dev).unwrap(),
+                hal::I2cdev::new(i2c_dev).map_err(|_| IMUError::Driver)?,
                 match i2c_addr {
                     0x68 => bmi160::SlaveAddr::default(),
                     0x69 => bmi160::SlaveAddr::Alternative(true),
@@ -52,11 +56,14 @@ impl IMU<IMUError> for BMI<BMI160I2C> {
             acc_res: 0.,
             gyr_res: 0.,
             t: 0,
-        }
+        })
     }
 
     fn init(&mut self) -> Result<(), IMUError> {
-        println!("chip_id: 0x{:x}", self.drv.chip_id()?);
+        println!(
+            "chip_id: 0x{:x}",
+            self.drv.chip_id().map_err(|_| IMUError::Driver)?
+        );
         // occasionally, first attempt doesn't take
         for _ in 0..2 {
             self.drv
@@ -71,7 +78,7 @@ impl IMU<IMUError> for BMI<BMI160I2C> {
 
     fn data(&mut self) -> Result<Data<f32, f32>, IMUError> {
         let sensel = bmi160::SensorSelector::new().accel().gyro().time();
-        let mut data = Data::from(self.drv.data(sensel)?);
+        let data = Data::from(self.drv.data(sensel).map_err(|_| IMUError::Driver)?);
         let dt: f32 = self.dt(data.t);
         self.t = data.t;
         Ok(Data {
@@ -79,9 +86,5 @@ impl IMU<IMUError> for BMI<BMI160I2C> {
             g: &data.g * self.gyr_res,
             t: dt,
         })
-    }
-
-    fn dt(&self, t: u32) -> f32 {
-        Self::SEC_PER_TICK * ((Self::BITMASK_24 & t.wrapping_sub(self.t)) as f32)
     }
 }

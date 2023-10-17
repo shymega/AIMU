@@ -36,6 +36,10 @@ impl<T: From<i16>, U: From<u32>> From<bmi270::Data> for Data<T, U> {
 impl BMI<BMI260I2C> {
     const SEC_PER_TICK: f32 = 39e-6; // [s/tick]
 
+    fn dt(&self, t: u32) -> f32 {
+        Self::SEC_PER_TICK * (t.wrapping_sub(self.t) as f32)
+    }
+
     fn reset(&mut self) -> Result<(), IMUError> {
         self.drv.send_cmd(bmi270::Cmd::SoftReset)?;
         sleep(Duration::from_millis(10));
@@ -53,11 +57,11 @@ impl BMI<BMI260I2C> {
     }
 }
 
-impl IMU<IMUError> for BMI<BMI260I2C> {
-    fn new(i2c_dev: &str, i2c_addr: u8) -> Self {
-        Self {
+impl IMU for BMI<BMI260I2C> {
+    fn new(i2c_dev: &str, i2c_addr: u8) -> Result<Self, IMUError> {
+        Ok(Self {
             drv: bmi270::Bmi270::new_i2c(
-                hal::I2cdev::new(i2c_dev).unwrap(),
+                hal::I2cdev::new(i2c_dev).map_err(|_| IMUError::Driver)?,
                 match i2c_addr {
                     0x68 => bmi270::I2cAddr::Default,
                     0x69 => bmi270::I2cAddr::Alternative,
@@ -68,13 +72,18 @@ impl IMU<IMUError> for BMI<BMI260I2C> {
             acc_res: 0.,
             gyr_res: 0.,
             t: 0,
-        }
+        })
     }
 
     fn init(&mut self) -> Result<(), IMUError> {
-        println!("chip_id: 0x{:x}", self.drv.get_chip_id()?);
+        println!(
+            "chip_id: 0x{:x}",
+            self.drv.get_chip_id().map_err(|_| IMUError::Driver)?
+        );
         self.reset()?;
-        self.drv.init(&bmi270::config::BMI260_CONFIG_FILE)?;
+        self.drv
+            .init(&bmi270::config::BMI260_CONFIG_FILE)
+            .map_err(|_| IMUError::Driver)?;
         let acc_range = self.acc_range()?;
         let gyr_range = self.gyr_range()?;
         println!("acc_range: ±{} g", acc_range);
@@ -88,12 +97,14 @@ impl IMU<IMUError> for BMI<BMI260I2C> {
             acc_en: true,
             temp_en: false,
         };
-        self.drv.set_pwr_ctrl(pwr_ctrl)?;
+        self.drv
+            .set_pwr_ctrl(pwr_ctrl)
+            .map_err(|_| IMUError::Driver)?;
         Ok(())
     }
 
     fn data(&mut self) -> Result<Data<f32, f32>, IMUError> {
-        let mut data = Data::from(self.drv.get_data()?);
+        let data = Data::from(self.drv.get_data().map_err(|_| IMUError::Driver)?);
         let dt: f32 = self.dt(data.t);
         self.t = data.t;
         Ok(Data {
@@ -101,9 +112,5 @@ impl IMU<IMUError> for BMI<BMI260I2C> {
             g: &data.g * self.gyr_res,
             t: dt,
         })
-    }
-
-    fn dt(&self, t: u32) -> f32 {
-        Self::SEC_PER_TICK * (t.wrapping_sub(self.t) as f32)
     }
 }

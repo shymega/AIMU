@@ -8,28 +8,46 @@ use evdev::{
 
 mod config;
 mod imu;
-#[cfg(feature = "bmi160")]
+#[cfg(any(feature = "bmi160", feature = "default"))]
 mod imu_bmi160;
-#[cfg(feature = "bmi260")]
+#[cfg(any(feature = "bmi260", feature = "default"))]
 mod imu_bmi260;
 mod motion;
 use imu::{IMUError, BMI, IMU};
 
 use std::{error::Error, thread::sleep, time::Duration};
 
-fn main() -> Result<(), Box<dyn Error>> {
-    //let cfg = config::ConfigAIMU::default();
+#[cfg(feature = "default")]
+fn imu_selector(cfg: &config::ConfigAIMU) -> anyhow::Result<Box<dyn IMU>> {
+    Ok(match cfg.imu.model.as_str() {
+        "bmi160" => Box::new(BMI::<imu_bmi160::BMI160I2C>::new(
+            &cfg.imu.i2c_dev,
+            cfg.imu.i2c_addr,
+        )?),
+        "bmi260" => Box::new(BMI::<imu_bmi260::BMI260I2C>::new(
+            &cfg.imu.i2c_dev,
+            cfg.imu.i2c_addr,
+        )?),
+        _ => panic!("Invalid model."),
+    })
+}
+
+fn main() -> anyhow::Result<()> {
+    #[cfg(not(feature = "cli"))]
+    let cfg = config::ConfigAIMU::default();
+    #[cfg(feature = "cli")]
     let cfg = config::ConfigAIMU::from_cli()?;
 
     //TODO: implement runtime switch for selecting frame based on cfg.user.frame
     // let mut motion = motion::Motion<motion::Frame::Local>::new(cfg.user.scale, cfg.device.screen);
-    let mut motion = motion::Motion::new(cfg.user.scale, cfg.device.screen);
+    let mut motion = motion::Motion::new(cfg.user.scale, cfg.device.screen, motion::Frame::Local);
 
-    //FIXME: implement compiletime switch
-    #[cfg(feature = "bmi160")]
-    let mut imu: BMI<imu_bmi160::BMI160I2C> = imu::IMU::new(&cfg.imu.i2c_dev, cfg.imu.i2c_addr);
-    #[cfg(feature = "bmi260")]
-    let mut imu: BMI<imu_bmi260::BMI260I2C> = imu::IMU::new(&cfg.imu.i2c_dev, cfg.imu.i2c_addr);
+    #[cfg(all(feature = "bmi160", not(feature = "default")))]
+    let mut imu: BMI<imu_bmi160::BMI160I2C> = IMU::new(&cfg.imu.i2c_dev, cfg.imu.i2c_addr)?;
+    #[cfg(all(feature = "bmi260", not(feature = "default")))]
+    let mut imu: BMI<imu_bmi260::BMI260I2C> = IMU::new(&cfg.imu.i2c_dev, cfg.imu.i2c_addr)?;
+    #[cfg(feature = "default")]
+    let mut imu = &mut *imu_selector(&cfg)?;
     imu.init()?;
 
     let mut dev_vr = VirtualDeviceBuilder::new()?
@@ -46,7 +64,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     loop {
         let data = imu.data()?;
         let xy_mot = motion.process(data.a.into(), data.g.into(), data.t);
-
         dev_vr.emit(&[
             InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_X.0, xy_mot.x),
             InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_Y.0, xy_mot.y),

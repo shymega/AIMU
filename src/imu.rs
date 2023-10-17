@@ -1,7 +1,7 @@
+use anyhow::Error;
 use std::ops::Mul;
 use thiserror::Error;
-
-#[cfg(feature = "gamepad")]
+#[cfg(feature = "async")]
 use tokio::sync::mpsc::Sender;
 
 #[derive(Error, Debug)]
@@ -75,11 +75,12 @@ pub struct Data<T, U> {
     pub t: U,
 }
 
-pub trait IMU<Err> {
-    fn new(i2c_dev: &str, i2c_addr: u8) -> Self;
-    fn init(&mut self) -> Result<(), Err>;
-    fn data(&mut self) -> Result<Data<f32, f32>, Err>;
-    fn dt(&self, t: u32) -> f32;
+pub trait IMU {
+    fn new(i2c_dev: &str, i2c_addr: u8) -> Result<Self, IMUError>
+    where
+        Self: Sized;
+    fn init(&mut self) -> Result<(), IMUError>;
+    fn data(&mut self) -> Result<Data<f32, f32>, IMUError>;
 }
 
 #[derive(Debug, Default)]

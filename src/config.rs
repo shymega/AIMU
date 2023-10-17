@@ -1,4 +1,4 @@
-use clap::Parser;
+use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -18,7 +18,7 @@ pub struct ConfigAIMU {
 
 #[derive(Debug, Default)]
 pub struct ConfigIMU {
-    // pub model: String,
+    pub model: String,
     pub i2c_dev: String,
     pub i2c_addr: u8,
 }
@@ -40,15 +40,18 @@ impl Default for ConfigAIMU {
     fn default() -> Self {
         Self {
             imu: ConfigIMU {
-                // model: String::from("bmi260"),
-                i2c_dev: String::from("/dev/i2c-2"),
+                model: String::from("bmi260"),
+                i2c_dev: PathBuf::from("/dev/i2c-2")
+                    .into_os_string()
+                    .into_string()
+                    .unwrap(),
                 i2c_addr: 0x69,
             },
             device: ConfigDevice {
                 /// [deg] acute angle between plane of keyboard and rear of screen
                 screen: 45.,
                 // /// orientation array [xx, xy, xz, yx, yy, yz, zx, zy, zz]
-                // orient: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                // orient: [1, 0, 0, 0, -1, 0, 0, 0, -1],
             },
             user: ConfigUser {
                 /// [-] arbitrary scale factor
@@ -62,13 +65,17 @@ impl Default for ConfigAIMU {
     }
 }
 
+#[cfg(feature = "cli")]
+use clap::Parser;
+
+#[cfg(feature = "cli")]
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct CLI {
-    // /// IMU model: bmi160 || bmi260
-    // #[arg(short='m', long, default_value_t = String::from("bmi260"))]
-    // model: String,
+    /// IMU model: bmi160 || bmi260
+    #[arg(short='m', long, default_value_t = String::from("bmi260"))]
+    model: String,
     /// I2C device path
     #[arg(short='d', long, default_value_t = String::from("/dev/i2c-2"))]
     i2c_dev: String,
@@ -79,7 +86,7 @@ struct CLI {
     #[arg(short = 'r', long, value_name = "DEGREES", default_value_t = 45.)]
     screen: f32,
     // /// [-] flattened 3x3 transformation matrix for mapping device axes
-    // #[arg(short = 'o', long, num_args = 9, default_values_t = vec![1,0,0,0,1,0,0,0,1])]
+    // #[arg(short = 'o', long, num_args = 9, default_values_t = vec![1,0,0,0,-1,0,0,0,-1])]
     // orient: Vec<i8>, //using vec until arrays are supported by clap
     /// [-] motion scale factor
     #[arg(short = 's', long, default_value_t = 50.0)]
@@ -89,12 +96,13 @@ struct CLI {
     freq: f32,
 }
 
+#[cfg(feature = "cli")]
 impl ConfigAIMU {
     pub fn from_cli() -> Result<Self, ConfigError> {
         let cli = CLI::parse();
         Ok(Self {
             imu: ConfigIMU {
-                // model: cli.model,
+                model: cli.model,
                 i2c_dev: cli.i2c_dev,
                 i2c_addr: cli.i2c_addr,
             },

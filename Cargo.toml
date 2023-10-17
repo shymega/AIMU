@@ -1,6 +1,6 @@
 [package]
 name = "aimu"
-version = "0.2.1"
+version = "0.2.2"
 author = "Adam Wahab"
 about = "IMU motion control."
 description = "Motion control for handheld computers equipped with a BMI160/BMI260 IMU."
@@ -26,8 +26,6 @@ autocxx-build = "0.26.0"
 
 [features]
 default = ["cli", "bmi160", "bmi260"]
-# default = ["bmi260"]
-# default = ["bmi160"]
 bmi160 = ["dep:bmi160"]
 bmi260 = ["dep:bmi270"]
 cli = ["dep:clap"]

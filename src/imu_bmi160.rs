@@ -2,12 +2,12 @@ extern crate linux_embedded_hal as hal;
 use crate::imu;
 use bmi160;
 use imu::{Data, IMUError, TriAx, BMI, IMU};
-use std::{ops::Mul, thread::sleep, time::Duration};
+use std::{fmt::Display, ops::Mul, thread::sleep, time::Duration};
 use thiserror::Error;
 
 pub type BMI160I2C = bmi160::Bmi160<bmi160::interface::I2cInterface<hal::I2cdev>>;
 
-impl<CommE, CsE> From<bmi160::Error<CommE, CsE>> for IMUError {
+impl<CommE: Display, CsE: Display> From<bmi160::Error<CommE, CsE>> for IMUError {
     fn from(_: bmi160::Error<CommE, CsE>) -> Self {
         Self::Driver
     }

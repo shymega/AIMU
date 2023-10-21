@@ -1,9 +1,9 @@
 extern crate linux_embedded_hal as hal;
-use crate::imu;
+use crate::imu::{self, Data, IMUError, TriAx, BMI, IMU};
 use bmi270;
-use imu::{Data, IMUError, TriAx, BMI, IMU};
 use std::{fmt::Display, ops::Mul, thread::sleep, time::Duration};
 use thiserror::Error;
+
 pub type BMI260I2C = bmi270::Bmi270<bmi270::interface::I2cInterface<hal::I2cdev>>;
 
 impl<CommE, CsE> From<bmi270::Error<CommE, CsE>> for IMUError {

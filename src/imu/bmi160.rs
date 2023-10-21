@@ -1,7 +1,6 @@
 extern crate linux_embedded_hal as hal;
-use crate::imu;
+use crate::imu::{self, Data, IMUError, TriAx, BMI, IMU};
 use bmi160;
-use imu::{Data, IMUError, TriAx, BMI, IMU};
 use std::{fmt::Display, ops::Mul, thread::sleep, time::Duration};
 use thiserror::Error;
 

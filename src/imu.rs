@@ -1,3 +1,10 @@
+#[cfg(any(feature = "bmi160", feature = "default"))]
+pub mod bmi160;
+
+#[cfg(any(feature = "bmi260", feature = "default"))]
+pub mod bmi260;
+
+// pub mod imu;
 use anyhow::Error;
 use std::ops::Mul;
 use thiserror::Error;

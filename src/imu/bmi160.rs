@@ -1,8 +1,7 @@
 extern crate linux_embedded_hal as hal;
-use crate::imu::{self, Data, IMUError, TriAx, BMI, IMU};
+use crate::imu::{Data, IMUError, TriAx, BMI, IMU};
 use bmi160;
-use std::{fmt::Display, ops::Mul, thread::sleep, time::Duration};
-use thiserror::Error;
+use std::fmt::Display;
 
 pub type BMI160I2C = bmi160::Bmi160<bmi160::interface::I2cInterface<hal::I2cdev>>;
 
@@ -65,9 +64,11 @@ impl IMU for BMI<BMI160I2C> {
         );
         // occasionally, first attempt doesn't take
         for _ in 0..2 {
-            self.drv
+            let _ = self
+                .drv
                 .set_accel_power_mode(bmi160::AccelerometerPowerMode::Normal);
-            self.drv
+            let _ = self
+                .drv
                 .set_gyro_power_mode(bmi160::GyroscopePowerMode::Normal);
         }
         self.acc_res = 4.0 / (u16::MAX as f32); // [g/bit] resolution

@@ -1,6 +1,8 @@
 #[cfg(feature = "cli")]
 pub mod cli;
 
+use crate::device::Config as ConfigDevice;
+use crate::imu::Config as ConfigIMU;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -20,19 +22,6 @@ pub struct ConfigAIMU {
 }
 
 #[derive(Debug, Default)]
-pub struct ConfigIMU {
-    pub model: String,
-    pub i2c_dev: String,
-    pub i2c_addr: u8,
-}
-
-#[derive(Debug, Default)]
-pub struct ConfigDevice {
-    pub screen: f32,
-    // pub orient: [i8; 9],
-}
-
-#[derive(Debug, Default)]
 pub struct ConfigUser {
     pub scale: f32,
     pub freq: f32,
@@ -43,7 +32,7 @@ impl Default for ConfigAIMU {
     fn default() -> Self {
         Self {
             imu: ConfigIMU {
-                model: String::from("bmi260"),
+                model: Some(crate::imu::IMUs::BMI260),
                 i2c_dev: PathBuf::from("/dev/i2c-2")
                     .into_os_string()
                     .into_string()
@@ -55,6 +44,7 @@ impl Default for ConfigAIMU {
                 screen: 45.,
                 // /// orientation array [xx, xy, xz, yx, yy, yz, zx, zy, zz]
                 // orient: [1, 0, 0, 0, -1, 0, 0, 0, -1],
+                trigger: None,
             },
             user: ConfigUser {
                 /// [-] arbitrary scale factor

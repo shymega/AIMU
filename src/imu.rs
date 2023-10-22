@@ -1,11 +1,7 @@
 #[cfg(any(feature = "bmi160", feature = "default"))]
 pub mod bmi160;
-
 #[cfg(any(feature = "bmi260", feature = "default"))]
 pub mod bmi260;
-
-// pub mod imu;
-use anyhow::Error;
 use std::ops::Mul;
 use thiserror::Error;
 #[cfg(feature = "async")]
@@ -19,6 +15,21 @@ pub enum IMUError {
     Driver,
     #[error("unknown IMU error")]
     Unknown,
+}
+
+#[derive(Clone, Debug)]
+#[cfg(feature = "cli")]
+#[derive(clap::ValueEnum)]
+pub enum IMUs {
+    BMI160,
+    BMI260,
+}
+
+#[derive(Debug, Default)]
+pub struct Config {
+    pub model: Option<IMUs>,
+    pub i2c_dev: String,
+    pub i2c_addr: u8,
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -97,11 +108,6 @@ pub struct BMI<T> {
     pub gyr_res: f32,
     pub t: u32,
 }
-
-// pub enum IMUs {
-//     BMI160,
-//     BMI260,
-// }
 
 #[cfg(feature = "async")]
 #[async_trait]

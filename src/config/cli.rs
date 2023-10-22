@@ -4,16 +4,19 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
-struct CLI {
-    /// IMU model: bmi160 || bmi260
-    #[arg(short='m', long, default_value_t = String::from("bmi260"))]
-    model: String,
+pub struct CLI {
+    /// IMU model
+    #[arg(short='m', long, value_enum, default_value_t = crate::imu::IMUs::BMI260)]
+    model: crate::imu::IMUs,
     /// I2C device path
     #[arg(short='d', long, default_value_t = String::from("/dev/i2c-2"))]
     i2c_dev: String,
-    /// I2C device address: 0x68 || 0x69
+    /// I2C device address [e.g., 0x68 or 0x69]
     #[arg(short = 'a', long, default_value_t = 0x69)]
     i2c_addr: u8,
+    /// trigger event code
+    #[arg(short='e', long, value_enum, default_value_t = crate::device::trigger::EventCode::AbsZ)]
+    trig_event: crate::device::trigger::EventCode,
     /// [deg] acute angle between rear of screen and plane of keyboard
     #[arg(short = 'r', long, value_name = "DEGREES", default_value_t = 45.)]
     screen: f32,
@@ -29,22 +32,22 @@ struct CLI {
 }
 
 impl ConfigAIMU {
-    pub fn from_cli() -> Result<Self, ConfigError> {
-        let cli = CLI::parse();
-        Ok(Self {
+    pub fn from_cli() -> Self {
+        let args = CLI::parse();
+        Self {
             imu: ConfigIMU {
-                model: cli.model,
-                i2c_dev: cli.i2c_dev,
-                i2c_addr: cli.i2c_addr,
+                model: Some(args.model),
+                i2c_dev: args.i2c_dev,
+                i2c_addr: args.i2c_addr,
             },
             device: ConfigDevice {
-                screen: cli.screen,
-                // orient: cli.orient.try_into().map_err(|_| ConfigError::CLIMapping)?,
+                screen: args.screen,
+                trigger: None, // orient: args.orient.try_into().map_err(|_| ConfigError::CLIMapping)?,
             },
             user: ConfigUser {
-                scale: cli.scale,
-                freq: cli.freq,
+                scale: args.scale,
+                freq: args.freq,
             },
-        })
+        }
     }
 }

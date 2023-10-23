@@ -1,6 +1,5 @@
 #![allow(unused)]
-#![allow(dead_code)]
-
+#![allow(clippy::too_many_arguments)]
 use autocxx::prelude::*;
 use std::pin::Pin;
 
@@ -19,6 +18,60 @@ pub enum Frame {
 pub struct BiAx<T> {
     pub x: T,
     pub y: T,
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct TriAx<T> {
+    pub x: T,
+    pub y: T,
+    pub z: T,
+}
+
+impl<T: Copy + Clone> From<[T; 3]> for TriAx<T> {
+    fn from(a: [T; 3]) -> Self {
+        Self {
+            x: a[0],
+            y: a[1],
+            z: a[2],
+        }
+    }
+}
+
+impl<T: Copy + Clone> From<&[T; 3]> for TriAx<T> {
+    fn from(a: &[T; 3]) -> Self {
+        Self {
+            x: a[0],
+            y: a[1],
+            z: a[2],
+        }
+    }
+}
+
+impl<T: std::ops::Mul<Output = T> + Copy> std::ops::Mul<T> for &TriAx<T> {
+    type Output = TriAx<T>;
+    fn mul(self, rhs: T) -> Self::Output {
+        TriAx {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
+        }
+    }
+}
+
+impl<T: std::ops::Mul<Output = T> + Copy> std::ops::Mul<T> for &'static mut TriAx<T> {
+    type Output = &'static mut TriAx<T>;
+    fn mul(self, rhs: T) -> Self::Output {
+        self.x = self.x * rhs;
+        self.y = self.y * rhs;
+        self.z = self.z * rhs;
+        self
+    }
+}
+
+impl<T> From<TriAx<T>> for [T; 3] {
+    fn from(val: TriAx<T>) -> Self {
+        [val.x, val.y, val.z]
+    }
 }
 
 pub struct Motion {
@@ -40,15 +93,9 @@ impl Motion {
 
     pub fn process(&mut self, a: [f32; 3], g: [f32; 3], dt: f32) -> BiAx<i32> {
         // FIXME: is there a more elegant way to unpack arrays?
-        self.motion.pin_mut().ProcessMotion(
-            g[0].into(),
-            g[1].into(),
-            g[2].into(),
-            a[0].into(),
-            a[1].into(),
-            a[2].into(),
-            dt,
-        );
+        self.motion
+            .pin_mut()
+            .ProcessMotion(g[0], g[1], g[2], a[0], a[1], a[2], dt);
         self.frame(dt)
     }
 

@@ -15,45 +15,40 @@ pub enum ConfigError {
 }
 
 #[derive(Debug)]
-pub struct ConfigAIMU {
+pub struct ConfigUser {
+    /// [-] arbitrary scale factor
+    pub scale: f32,
+    /// [Hz] update frequency
+    pub freq: f32,
+    // pub frame: String,
+}
+
+impl Default for ConfigUser {
+    fn default() -> Self {
+        Self {
+            scale: 50.,
+            freq: 40.,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Config {
     pub imu: ConfigIMU,
     pub device: ConfigDevice,
     pub user: ConfigUser,
 }
 
-#[derive(Debug, Default)]
-pub struct ConfigUser {
-    pub scale: f32,
-    pub freq: f32,
-    // pub frame: String,
-}
-
-impl Default for ConfigAIMU {
+impl Default for Config {
     fn default() -> Self {
         Self {
             imu: ConfigIMU {
-                model: Some(crate::imu::IMUs::BMI260),
-                i2c_dev: PathBuf::from("/dev/i2c-2")
-                    .into_os_string()
-                    .into_string()
-                    .unwrap(),
+                model: crate::imu::IMUs::BMI260,
+                i2c_dev: PathBuf::from("/dev/i2c-2"),
                 i2c_addr: 0x69,
             },
-            device: ConfigDevice {
-                /// [deg] acute angle between plane of keyboard and rear of screen
-                screen: 45.,
-                // /// orientation array [xx, xy, xz, yx, yy, yz, zx, zy, zz]
-                // orient: [1, 0, 0, 0, -1, 0, 0, 0, -1],
-                trigger: None,
-            },
-            user: ConfigUser {
-                /// [-] arbitrary scale factor
-                scale: 50.0,
-                /// [Hz] update frequency
-                freq: 40.0,
-                // frame of reference for processing motion control
-                // frame: String::from("local"),
-            },
+            device: ConfigDevice::default(),
+            user: ConfigUser::default(),
         }
     }
 }

@@ -1,28 +1,71 @@
+#![allow(clippy::upper_case_acronyms)]
 use crate::config::*;
-use clap::Parser;
+use clap::{Args, Parser};
 
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-#[command(propagate_version = true)]
-pub struct CLI {
+#[derive(Args, Debug)]
+#[group(required = false, id = "imu", requires_all = ["model", "i2c_dev", "i2c_addr"])]
+struct IMU {
     /// IMU model
     #[arg(short='m', long, value_enum, default_value_t = crate::imu::IMUs::BMI260)]
     model: crate::imu::IMUs,
-    /// I2C device path
-    #[arg(short='d', long, default_value_t = String::from("/dev/i2c-2"))]
-    i2c_dev: String,
-    /// I2C device address [e.g., 0x68 or 0x69]
-    #[arg(short = 'a', long, default_value_t = 0x69)]
+    /// IMU I2C device path
+    #[arg(short='d', long, default_value_os_t = crate::imu::Config::default().i2c_dev)]
+    i2c_dev: std::path::PathBuf,
+    /// IMU I2C device address [e.g., 0x68 (104) or 0x69 (105)]
+    #[arg(short = 'a', long, default_value_t = crate::imu::Config::default().i2c_addr)]
     i2c_addr: u8,
+}
+
+#[derive(Args, Debug, Clone)]
+#[group(required = false, id = "trigger")]
+struct Trigger {
+    /// trigger device name
+    #[arg(short = 't', long="trig_dev", default_value_t = crate::device::trigger::Config::default().device)]
+    device: String,
     /// trigger event code
-    #[arg(short='e', long, value_enum, default_value_t = crate::device::trigger::EventCode::AbsZ)]
-    trig_event: crate::device::trigger::EventCode,
+    #[arg(short = 'e', long = "trig_ev", value_enum, default_value_t = crate::device::trigger::Config::default().event)]
+    event: crate::device::trigger::EventCode,
+    /// trigger state transition threshold
+    #[arg(short = 'h', long = "trig_thresh", default_value_t = crate::device::trigger::Config::default().thresh)]
+    thresh: i32,
+}
+
+impl From<Trigger> for crate::device::trigger::Config {
+    fn from(val: Trigger) -> Self {
+        Self {
+            device: val.device,
+            event: val.event,
+            thresh: val.thresh,
+        }
+    }
+}
+impl From<Trigger> for crate::device::trigger::Trigger {
+    fn from(val: Trigger) -> Self {
+        Self::new(val.into())
+    }
+}
+
+#[derive(Args, Debug)]
+#[group(required = false, id = "device")]
+struct Device {
+    #[command(flatten)]
+    trigger: Trigger,
     /// [deg] acute angle between rear of screen and plane of keyboard
     #[arg(short = 'r', long, value_name = "DEGREES", default_value_t = 45.)]
     screen: f32,
     // /// [-] flattened 3x3 transformation matrix for mapping device axes
     // #[arg(short = 'o', long, num_args = 9, default_values_t = vec![1,0,0,0,-1,0,0,0,-1])]
     // orient: Vec<i8>, //using vec until arrays are supported by clap
+}
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+#[command(propagate_version = true)]
+pub struct CLI {
+    #[command(flatten)]
+    imu: IMU,
+    #[command(flatten)]
+    device: Device,
     /// [-] motion scale factor
     #[arg(short = 's', long, default_value_t = 50.0)]
     scale: f32,
@@ -31,18 +74,19 @@ pub struct CLI {
     freq: f32,
 }
 
-impl ConfigAIMU {
+impl Config {
     pub fn from_cli() -> Self {
         let args = CLI::parse();
         Self {
             imu: ConfigIMU {
-                model: Some(args.model),
-                i2c_dev: args.i2c_dev,
-                i2c_addr: args.i2c_addr,
+                model: args.imu.model,
+                i2c_dev: args.imu.i2c_dev,
+                i2c_addr: args.imu.i2c_addr,
             },
             device: ConfigDevice {
-                screen: args.screen,
-                trigger: None, // orient: args.orient.try_into().map_err(|_| ConfigError::CLIMapping)?,
+                screen: args.device.screen,
+                trigger: args.device.trigger.into(),
+                // orient: args.orient.try_into().map_err(|_| ConfigError::CLIMapping)?,
             },
             user: ConfigUser {
                 scale: args.scale,

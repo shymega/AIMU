@@ -1,3 +1,4 @@
+use super::VDev;
 use anyhow::Result;
 use evdev::{
     self,
@@ -9,8 +10,8 @@ pub struct VMouse {
     device: VirtualDevice,
 }
 
-impl VMouse {
-    pub fn new() -> Result<Self> {
+impl VDev for VMouse {
+    fn new() -> Result<Self> {
         Ok(Self {
             device: VirtualDeviceBuilder::new()?
                 .name("AIMU")
@@ -23,7 +24,7 @@ impl VMouse {
         })
     }
 
-    pub fn update(&mut self, x: i32, y: i32) -> Result<()> {
+    fn update(&mut self, x: i32, y: i32) -> Result<()> {
         Ok(self.device.emit(&[
             InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_X.0, x),
             InputEvent::new(EventType::RELATIVE, RelativeAxisType::REL_Y.0, y),

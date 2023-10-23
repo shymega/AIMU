@@ -1,18 +1,25 @@
-#[cfg(any(feature = "bmi160", feature = "default"))]
+#![allow(clippy::new_ret_no_self)]
+#![allow(clippy::upper_case_acronyms)]
+#[cfg(any(feature = "bmi160", feature = "dynamic"))]
 pub mod bmi160;
-#[cfg(any(feature = "bmi260", feature = "default"))]
+#[cfg(any(feature = "bmi260", feature = "dynamic"))]
 pub mod bmi260;
-use std::ops::Mul;
+use super::motion::TriAx;
+use anyhow::Result;
 use thiserror::Error;
 #[cfg(feature = "async")]
 use tokio::sync::mpsc::Sender;
 
 #[derive(Error, Debug)]
-pub enum IMUError {
+pub enum Error {
     #[error("failed to initialize")]
-    Initialization,
+    Init,
     #[error("failed to communicate")]
     Driver,
+    #[error("invalid device path")]
+    Path,
+    #[error("unsupported model")]
+    Model,
     #[error("unknown IMU error")]
     Unknown,
 }
@@ -23,66 +30,50 @@ pub enum IMUError {
 pub enum IMUs {
     BMI160,
     BMI260,
+    Unsupported,
 }
 
-#[derive(Debug, Default)]
+impl IMUs {
+    #[cfg(feature = "dynamic")]
+    pub fn new(cfg: &Config) -> Result<Box<dyn IMU>, Error> {
+        match cfg.model {
+            Self::BMI160 => Ok(Box::new(BMI::<bmi160::BMI160I2C>::new(
+                cfg.i2c_dev.to_str().unwrap(),
+                cfg.i2c_addr,
+            )?)),
+            Self::BMI260 => Ok(Box::new(BMI::<bmi260::BMI260I2C>::new(
+                cfg.i2c_dev.to_str().unwrap(),
+                cfg.i2c_addr,
+            )?)),
+            _ => Err(Error::Model),
+        }
+    }
+
+    #[cfg(all(feature = "bmi160", not(feature = "dynamic")))]
+    pub fn new(cfg: &Config) -> BMI<bmi160::BMI160I2C> {
+        IMU::new(cfg.i2c_dev.to_str().unwrap(), cfg.i2c_addr)?
+    }
+
+    #[cfg(all(feature = "bmi260", not(feature = "dynamic")))]
+    pub fn new(cfg: &Config) -> BMI<bmi260::BMI260I2C> {
+        IMU::new(cfg.i2c_dev.to_str().unwrap(), cfg.i2c_addr)?
+    }
+}
+
+#[derive(Debug)]
 pub struct Config {
-    pub model: Option<IMUs>,
-    pub i2c_dev: String,
+    pub model: IMUs,
+    pub i2c_dev: std::path::PathBuf,
     pub i2c_addr: u8,
 }
 
-#[derive(Copy, Clone, Debug, Default)]
-pub struct TriAx<T> {
-    pub x: T,
-    pub y: T,
-    pub z: T,
-}
-
-impl<T: Copy + Clone> From<[T; 3]> for TriAx<T> {
-    fn from(a: [T; 3]) -> Self {
+impl Default for Config {
+    fn default() -> Self {
         Self {
-            x: a[0],
-            y: a[1],
-            z: a[2],
+            model: IMUs::BMI260,
+            i2c_dev: std::path::PathBuf::from("/dev/i2c-2"),
+            i2c_addr: 0x69,
         }
-    }
-}
-
-impl<T: Copy + Clone> From<&[T; 3]> for TriAx<T> {
-    fn from(a: &[T; 3]) -> Self {
-        Self {
-            x: a[0],
-            y: a[1],
-            z: a[2],
-        }
-    }
-}
-
-impl<T: Mul<Output = T> + Copy> Mul<T> for &TriAx<T> {
-    type Output = TriAx<T>;
-    fn mul(self, rhs: T) -> Self::Output {
-        TriAx {
-            x: self.x * rhs,
-            y: self.y * rhs,
-            z: self.z * rhs,
-        }
-    }
-}
-
-impl<T: Mul<Output = T> + Copy> Mul<T> for &'static mut TriAx<T> {
-    type Output = &'static mut TriAx<T>;
-    fn mul(self, rhs: T) -> Self::Output {
-        self.x = self.x * rhs;
-        self.y = self.y * rhs;
-        self.z = self.z * rhs;
-        self
-    }
-}
-
-impl<T> Into<[T; 3]> for TriAx<T> {
-    fn into(self) -> [T; 3] {
-        [self.x, self.y, self.z]
     }
 }
 
@@ -94,11 +85,11 @@ pub struct Data<T, U> {
 }
 
 pub trait IMU {
-    fn new(i2c_dev: &str, i2c_addr: u8) -> Result<Self, IMUError>
+    fn new(i2c_dev: &str, i2c_addr: u8) -> Result<Self, Error>
     where
         Self: Sized;
-    fn init(&mut self) -> Result<(), IMUError>;
-    fn data(&mut self) -> Result<Data<f32, f32>, IMUError>;
+    fn init(&mut self) -> Result<(), Error>;
+    fn data(&mut self) -> Result<Data<f32, f32>, Error>;
 }
 
 #[derive(Debug, Default)]

@@ -1,11 +1,11 @@
 extern crate linux_embedded_hal as hal;
-use crate::imu::{Data, IMUError, TriAx, BMI, IMU};
+use super::{Data, Error, TriAx, BMI, IMU};
 use bmi160;
 use std::fmt::Display;
 
 pub type BMI160I2C = bmi160::Bmi160<bmi160::interface::I2cInterface<hal::I2cdev>>;
 
-impl<CommE: Display, CsE: Display> From<bmi160::Error<CommE, CsE>> for IMUError {
+impl<CommE: Display, CsE: Display> From<bmi160::Error<CommE, CsE>> for Error {
     fn from(_: bmi160::Error<CommE, CsE>) -> Self {
         Self::Driver
     }
@@ -41,10 +41,10 @@ impl BMI<BMI160I2C> {
 }
 
 impl IMU for BMI<BMI160I2C> {
-    fn new(i2c_dev: &str, i2c_addr: u8) -> Result<Self, IMUError> {
+    fn new(i2c_dev: &str, i2c_addr: u8) -> Result<Self, Error> {
         Ok(Self {
             drv: bmi160::Bmi160::new_with_i2c(
-                hal::I2cdev::new(i2c_dev).map_err(|_| IMUError::Driver)?,
+                hal::I2cdev::new(i2c_dev).map_err(|_| Error::Driver)?,
                 match i2c_addr {
                     0x68 => bmi160::SlaveAddr::default(),
                     0x69 => bmi160::SlaveAddr::Alternative(true),
@@ -57,10 +57,10 @@ impl IMU for BMI<BMI160I2C> {
         })
     }
 
-    fn init(&mut self) -> Result<(), IMUError> {
+    fn init(&mut self) -> Result<(), Error> {
         println!(
             "chip_id: 0x{:x}",
-            self.drv.chip_id().map_err(|_| IMUError::Driver)?
+            self.drv.chip_id().map_err(|_| Error::Driver)?
         );
         // occasionally, first attempt doesn't take
         for _ in 0..2 {
@@ -76,9 +76,9 @@ impl IMU for BMI<BMI160I2C> {
         Ok(())
     }
 
-    fn data(&mut self) -> Result<Data<f32, f32>, IMUError> {
+    fn data(&mut self) -> Result<Data<f32, f32>, Error> {
         let sensel = bmi160::SensorSelector::new().accel().gyro().time();
-        let data = Data::from(self.drv.data(sensel).map_err(|_| IMUError::Driver)?);
+        let data = Data::from(self.drv.data(sensel).map_err(|_| Error::Driver)?);
         let dt: f32 = self.dt(data.t);
         self.t = data.t;
         Ok(Data {

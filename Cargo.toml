@@ -20,6 +20,8 @@ async-trait = { version = "0.1.73", optional = true }
 clap = { version = "4.4.6", features = ["derive"], optional = true }
 thiserror = "1.0.49"
 anyhow = "1.0.75"
+toml = "0.8.4"
+serde = { version = "1.0.189", features = ["derive"] }
 
 [build-dependencies]
 autocxx-build = "0.26.0"

@@ -6,6 +6,7 @@ pub mod bmi160;
 pub mod bmi260;
 use super::motion::TriAx;
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 #[cfg(feature = "async")]
 use tokio::sync::mpsc::Sender;
@@ -24,7 +25,7 @@ pub enum Error {
     Unknown,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg(feature = "cli")]
 #[derive(clap::ValueEnum)]
 pub enum IMUs {
@@ -60,7 +61,7 @@ impl IMUs {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub model: IMUs,
     pub i2c_dev: std::path::PathBuf,

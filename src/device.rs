@@ -1,4 +1,5 @@
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 pub mod trigger;
 pub mod vmouse;
 
@@ -9,11 +10,11 @@ pub trait VDev {
     fn update(&mut self, x: i32, y: i32) -> Result<()>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     /// [deg] acute angle between plane of keyboard and rear of screen
     pub screen: f32,
-    /// orientation array [xx, xy, xz, yx, yy, yz, zx, zy, zz]
+    // orientation array [xx, xy, xz, yx, yy, yz, zx, zy, zz]
     // pub orient: [i8; 9],
     pub trigger: trigger::Config,
     // pub vdev: dyn VDev,

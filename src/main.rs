@@ -18,6 +18,8 @@ fn main() -> Result<()> {
     #[cfg(feature = "cli")]
     let cfg = Config::from_cli();
 
+    println!("{}", toml::to_string_pretty(&cfg).unwrap());
+
     //TODO: implement runtime switch for selecting frame based on cfg.user.frame
     // let mut motion = motion::Motion<motion::Frame::Local>::new(cfg.user.scale, cfg.device.screen);
     let mut motion = motion::Motion::new(cfg.user.scale, cfg.device.screen, motion::Frame::Local);

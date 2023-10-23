@@ -1,10 +1,11 @@
 use evdev::{self, AbsoluteAxisType, Device, InputEventKind};
+use serde::{Deserialize, Serialize};
 use std::{
     sync::{Arc, Mutex},
     thread,
 };
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[cfg(feature = "cli")]
 #[derive(clap::ValueEnum)]
 pub enum EventCode {
@@ -17,12 +18,12 @@ impl From<EventCode> for InputEventKind {
     fn from(val: EventCode) -> Self {
         match val {
             EventCode::AbsZ => InputEventKind::AbsAxis(AbsoluteAxisType::ABS_Z),
-            _ => panic!("invalid code"),
+            _ => panic!("unsupported event code!"),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub device: String,
     pub event: EventCode,

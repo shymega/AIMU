@@ -3,18 +3,19 @@ pub mod cli;
 
 use crate::device::Config as ConfigDevice;
 use crate::imu::Config as ConfigIMU;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("failed to map cli args to config struct")]
-    CLIMapping,
+    Mapping,
     #[error("unknown config error")]
     Unknown,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ConfigUser {
     /// [-] arbitrary scale factor
     pub scale: f32,
@@ -32,7 +33,7 @@ impl Default for ConfigUser {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub imu: ConfigIMU,
     pub device: ConfigDevice,

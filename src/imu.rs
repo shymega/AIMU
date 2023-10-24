@@ -1,5 +1,5 @@
-#![allow(clippy::new_ret_no_self)]
-#![allow(clippy::upper_case_acronyms)]
+#[allow(clippy::new_ret_no_self)]
+#[allow(clippy::upper_case_acronyms)]
 #[cfg(any(feature = "bmi160", feature = "dynamic"))]
 pub mod bmi160;
 #[cfg(any(feature = "bmi260", feature = "dynamic"))]
@@ -8,8 +8,6 @@ use super::motion::TriAx;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-#[cfg(feature = "async")]
-use tokio::sync::mpsc::Sender;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -28,10 +26,10 @@ pub enum Error {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg(feature = "cli")]
 #[derive(clap::ValueEnum)]
+#[value(rename_all = "lowercase")]
 pub enum IMUs {
     BMI160,
     BMI260,
-    Unsupported,
 }
 
 impl IMUs {
@@ -99,15 +97,4 @@ pub struct BMI<T> {
     pub acc_res: f32,
     pub gyr_res: f32,
     pub t: u32,
-}
-
-#[cfg(feature = "async")]
-#[async_trait]
-trait Sender<T, U> {
-    async fn sender(&mut self, tx: Sender<Data<T, U>>, interval: Duration) {
-        loop {
-            tokio::time::sleep(interval).await;
-            tx.send(self.data()).await.unwrap();
-        }
-    }
 }

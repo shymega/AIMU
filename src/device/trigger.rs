@@ -8,9 +8,9 @@ use std::{
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[cfg(feature = "cli")]
 #[derive(clap::ValueEnum)]
+#[value(rename_all = "lowercase")]
 pub enum EventCode {
     AbsZ,
-    None,
 }
 
 //TODO: support code combos, e.g., ABS_RX|ABS_RY
@@ -25,7 +25,7 @@ impl From<EventCode> for InputEventKind {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub device: String,
+    pub device: Option<String>,
     pub event: EventCode,
     pub thresh: i32,
 }
@@ -33,7 +33,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            device: String::from("Microsoft X-Box 360 pad"),
+            device: Some(String::from("Microsoft X-Box 360 pad")),
             event: EventCode::AbsZ,
             thresh: 10,
         }
@@ -41,7 +41,7 @@ impl Default for Config {
 }
 
 pub struct Trigger {
-    device: Arc<Mutex<Device>>,
+    device: Option<Arc<Mutex<Device>>>,
     event: Arc<Mutex<InputEventKind>>,
     thresh: i32,
     state: Arc<Mutex<i32>>,
@@ -56,12 +56,12 @@ pub struct Trigger {
 impl Trigger {
     pub fn new(cfg: Config) -> Self {
         Self {
-            device: Arc::new(Mutex::new(
+            device: cfg.device.and_then(|dev| {
                 evdev::enumerate()
                     .map(|t| t.1)
-                    .find(|d| d.name().unwrap() == cfg.device)
-                    .unwrap(),
-            )),
+                    .find(|d| d.name().unwrap() == dev)
+                    .and_then(|dev| Some(Arc::new(Mutex::new(dev))))
+            }),
             event: Arc::new(Mutex::new(cfg.event.into())),
             thresh: cfg.thresh,
             state: Arc::new(Mutex::new(0)),
@@ -69,19 +69,24 @@ impl Trigger {
     }
 
     pub fn task(&self) {
-        let device = Arc::clone(&self.device);
-        let event = Arc::clone(&self.event);
         let state = Arc::clone(&self.state);
-        thread::spawn(move || loop {
-            for e in device.lock().unwrap().fetch_events().unwrap() {
-                if e.kind() == *event.lock().unwrap() {
-                    *(state.lock().unwrap()) = e.value();
-                };
+        match &self.device {
+            Some(dev) => {
+                let device = Arc::clone(&(dev));
+                let event = Arc::clone(&self.event);
+                thread::spawn(move || loop {
+                    for e in device.lock().unwrap().fetch_events().unwrap() {
+                        if e.kind() == *event.lock().unwrap() {
+                            *(state.lock().unwrap()) = e.value();
+                        };
+                    }
+                });
             }
-        });
+            None => *(state.lock().unwrap()) = self.thresh,
+        };
     }
 
     pub fn check(&self) -> bool {
-        *self.state.lock().unwrap() > self.thresh
+        *self.state.lock().unwrap() >= self.thresh
     }
 }

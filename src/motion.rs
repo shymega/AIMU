@@ -1,5 +1,4 @@
-#![allow(unused)]
-#![allow(clippy::too_many_arguments)]
+#[allow(unused)]
 use autocxx::prelude::*;
 use std::pin::Pin;
 
@@ -120,6 +119,8 @@ impl Motion {
         }
     }
 
+    #[allow(unused_mut)]
+    #[allow(unused_variables)]
     fn frame_player(&mut self, dt: f32) -> BiAx<i32> {
         let (mut x, mut y, mut z): (f32, f32, f32) = (0.0, 0.0, 0.0);
         self.motion

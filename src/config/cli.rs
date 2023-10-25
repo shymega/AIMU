@@ -1,4 +1,4 @@
-#[allow(clippy::upper_case_acronyms)]
+#![allow(clippy::upper_case_acronyms)]
 use crate::config::*;
 use crate::device::trigger;
 use crate::imu;

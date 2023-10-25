@@ -1,11 +1,11 @@
-#[allow(clippy::new_ret_no_self)]
-#[allow(clippy::upper_case_acronyms)]
+#![allow(clippy::new_ret_no_self)]
+#![allow(clippy::upper_case_acronyms)]
 #[cfg(any(feature = "bmi160", feature = "dynamic"))]
 pub mod bmi160;
 #[cfg(any(feature = "bmi260", feature = "dynamic"))]
 pub mod bmi260;
-use super::motion::TriAx;
 use anyhow::Result;
+use glam::Vec3;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -77,10 +77,10 @@ impl Default for Config {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Data<T, U> {
-    pub a: TriAx<T>,
-    pub g: TriAx<T>,
-    pub t: U,
+pub struct Data {
+    pub a: Vec3,
+    pub g: Vec3,
+    pub t: f32,
 }
 
 pub trait IMU {
@@ -88,7 +88,7 @@ pub trait IMU {
     where
         Self: Sized;
     fn init(&mut self) -> Result<(), Error>;
-    fn data(&mut self) -> Result<Data<f32, f32>, Error>;
+    fn data(&mut self) -> Result<Data, Error>;
 }
 
 #[derive(Debug, Default)]

@@ -1,6 +1,7 @@
 extern crate linux_embedded_hal as hal;
-use super::{Data, Error, TriAx, BMI, IMU};
+use super::{Data, Error, BMI, IMU};
 use bmi270;
+use glam::Vec3;
 use std::{thread::sleep, time::Duration};
 
 pub type BMI260I2C = bmi270::Bmi270<bmi270::interface::I2cInterface<hal::I2cdev>>;
@@ -8,26 +9,6 @@ pub type BMI260I2C = bmi270::Bmi270<bmi270::interface::I2cInterface<hal::I2cdev>
 impl<CommE, CsE> From<bmi270::Error<CommE, CsE>> for Error {
     fn from(_: bmi270::Error<CommE, CsE>) -> Self {
         Self::Driver
-    }
-}
-
-impl<T: From<i16>> From<bmi270::AxisData> for TriAx<T> {
-    fn from(d: bmi270::AxisData) -> Self {
-        Self {
-            x: <T>::from(d.x),
-            y: <T>::from(d.y),
-            z: <T>::from(d.z),
-        }
-    }
-}
-
-impl<T: From<i16>, U: From<u32>> From<bmi270::Data> for Data<T, U> {
-    fn from(d: bmi270::Data) -> Self {
-        Self {
-            a: TriAx::<T>::from(d.acc),
-            g: TriAx::<T>::from(d.gyr),
-            t: <U>::from(d.time),
-        }
     }
 }
 
@@ -99,13 +80,13 @@ impl IMU for BMI<BMI260I2C> {
         Ok(())
     }
 
-    fn data(&mut self) -> Result<Data<f32, f32>, Error> {
-        let data = Data::from(self.drv.get_data().map_err(|_| Error::Driver)?);
-        let dt: f32 = self.dt(data.t);
-        self.t = data.t;
+    fn data(&mut self) -> Result<Data, Error> {
+        let d = self.drv.get_data().map_err(|_| Error::Driver)?;
+        let dt: f32 = self.dt(d.time);
+        self.t = d.time;
         Ok(Data {
-            a: &data.a * self.acc_res,
-            g: &data.g * self.gyr_res,
+            a: Vec3::new(d.acc.x as f32, d.acc.y as f32, d.acc.z as f32) * self.acc_res,
+            g: Vec3::new(d.gyr.x as f32, d.gyr.y as f32, d.gyr.z as f32) * self.gyr_res,
             t: dt,
         })
     }

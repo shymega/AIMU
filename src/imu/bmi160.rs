@@ -1,6 +1,7 @@
 extern crate linux_embedded_hal as hal;
-use super::{Data, Error, TriAx, BMI, IMU};
+use super::{Data, Error, BMI, IMU};
 use bmi160;
+use glam::Vec3;
 use std::fmt::Display;
 
 pub type BMI160I2C = bmi160::Bmi160<bmi160::interface::I2cInterface<hal::I2cdev>>;
@@ -8,26 +9,6 @@ pub type BMI160I2C = bmi160::Bmi160<bmi160::interface::I2cInterface<hal::I2cdev>
 impl<CommE: Display, CsE: Display> From<bmi160::Error<CommE, CsE>> for Error {
     fn from(_: bmi160::Error<CommE, CsE>) -> Self {
         Self::Driver
-    }
-}
-
-impl<T: From<i16>> From<bmi160::Sensor3DData> for TriAx<T> {
-    fn from(d: bmi160::Sensor3DData) -> Self {
-        Self {
-            x: <T>::from(d.x),
-            y: <T>::from(d.y),
-            z: <T>::from(d.z),
-        }
-    }
-}
-
-impl<T: From<i16>, U: From<u32>> From<bmi160::Data> for Data<T, U> {
-    fn from(d: bmi160::Data) -> Self {
-        Self {
-            a: TriAx::<T>::from(d.accel.unwrap()),
-            g: TriAx::<T>::from(d.gyro.unwrap()),
-            t: <U>::from(d.time.unwrap()),
-        }
     }
 }
 
@@ -76,14 +57,17 @@ impl IMU for BMI<BMI160I2C> {
         Ok(())
     }
 
-    fn data(&mut self) -> Result<Data<f32, f32>, Error> {
+    fn data(&mut self) -> Result<Data, Error> {
         let sensel = bmi160::SensorSelector::new().accel().gyro().time();
-        let data = Data::from(self.drv.data(sensel).map_err(|_| Error::Driver)?);
-        let dt: f32 = self.dt(data.t);
-        self.t = data.t;
+        let d = self.drv.data(sensel).map_err(|_| Error::Driver)?;
+        let a = d.accel.unwrap();
+        let g = d.gyro.unwrap();
+        let t = d.time.unwrap();
+        let dt: f32 = self.dt(t);
+        self.t = t;
         Ok(Data {
-            a: &data.a * self.acc_res,
-            g: &data.g * self.gyr_res,
+            a: Vec3::new(a.x as f32, a.y as f32, a.z as f32) * self.acc_res,
+            g: Vec3::new(g.x as f32, g.y as f32, g.z as f32) * self.gyr_res,
             t: dt,
         })
     }

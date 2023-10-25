@@ -60,7 +60,7 @@ impl Trigger {
                 evdev::enumerate()
                     .map(|t| t.1)
                     .find(|d| d.name().unwrap() == dev)
-                    .and_then(|dev| Some(Arc::new(Mutex::new(dev))))
+                    .map(|dev| Arc::new(Mutex::new(dev)))
             }),
             event: Arc::new(Mutex::new(cfg.event.into())),
             thresh: cfg.thresh,
@@ -72,7 +72,7 @@ impl Trigger {
         let state = Arc::clone(&self.state);
         match &self.device {
             Some(dev) => {
-                let device = Arc::clone(&(dev));
+                let device = Arc::clone(dev);
                 let event = Arc::clone(&self.event);
                 thread::spawn(move || loop {
                     for e in device.lock().unwrap().fetch_events().unwrap() {

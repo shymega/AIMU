@@ -38,7 +38,8 @@ fn main() -> Result<()> {
 
     loop {
         let data = imu.data()?;
-        let xy_mot = motion.process(data.a.into(), data.g.into(), data.t);
+        let xy_mot = motion.process(a, g, dt, cfg.user.scale);
+        // let xy_mot = motion.process(data.a.into(), data.g.into(), data.t);
         if trig.check() {
             vdev.update(xy_mot.x, xy_mot.y)?;
         }

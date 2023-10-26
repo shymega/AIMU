@@ -1,14 +1,6 @@
 #![allow(clippy::too_many_arguments)]
-#[allow(unused)]
-use autocxx::prelude::*;
-use glam::IVec2;
-use std::pin::Pin;
-
-include_cpp! {
-    #include "GamepadMotion.hpp"
-    generate!("GamepadMotion")
-    safety!(unsafe_ffi)
-}
+use gamepad_motion::GamepadMotion;
+use glam::{Mat3, Vec2Swizzles, Vec3};
 
 pub enum Frame {
     Local,
@@ -16,29 +8,51 @@ pub enum Frame {
 }
 
 pub struct Motion {
-    motion: UniquePtr<ffi::GamepadMotion>,
-    scale: f32,
-    sincos: (f32, f32),
+    motion: GamepadMotion,
     frame: Frame,
+    transform: Mat3,
 }
 
 impl Motion {
-    pub fn new(scale: f32, screen: f32, frame: Frame) -> Self {
+    pub fn new(screen: f32, frame: Frame) -> Self {
+        let sincos = screen.to_radians().sin_cos();
         Self {
-            motion: ffi::GamepadMotion::new().within_unique_ptr(),
-            scale,
-            sincos: screen.to_radians().sin_cos(),
+            motion: GamepadMotion::new(),
             frame,
+            transform: Mat3::from_cols(Vec3::X, Vec3::NEG_Y, Vec3::NEG_Z)
+                .transpose()
+                .mul_mat3(
+                    &Mat3::from_cols_array(&[sincos.1, 0., -sincos.0, 0., 1., 0., 0., 0., 0.])
+                        .transpose(),
+                ),
         }
     }
 
-    pub fn process(&mut self, a: [f32; 3], g: [f32; 3], dt: f32) -> IVec2 {
-        // FIXME: is there a more elegant way to unpack arrays?
-        self.motion
-            .pin_mut()
-            .ProcessMotion(g[0], g[1], g[2], a[0], a[1], a[2], dt);
-        self.frame(dt)
+    fn transform(&self, g: &Vec3, dt: f32, scale: f32) -> IVec2 {
+        self.transform
+            .mul_scalar(self.scale * dt)
+            .mul_vec3(g)
+            .xy
+            .as_ivec2()
+        // IVec2::new(
+        //     ((g.x * self.sincos.1 - (-g.z) * self.sincos.0) * self.scale * dt) as i32,
+        //     ((-g.y) * self.scale * dt) as i32,
+        // )
     }
+
+    pub fn process(&mut self, a: [f32; 3], g: [f32; 3], dt: f32, scale: &f32) -> IVec2 {
+        // FIXME: is there a more elegant way to unpack arrays?
+        let xyz = self.motion.process(&g, &a, &dt).gyro_player_space(None);
+        self.transform(xyz, dt, scale)
+    }
+
+    // pub fn process(&mut self, a: [f32; 3], g: [f32; 3], dt: f32) -> IVec2 {
+    //     // FIXME: is there a more elegant way to unpack arrays?
+    //     self.motion
+    //         .pin_mut()
+    //         .ProcessMotion(g[0], g[1], g[2], a[0], a[1], a[2], dt);
+    //     self.frame(dt)
+    // }
 
     //FIXME: select frame using generics
     fn frame(&mut self, dt: f32) -> IVec2 {

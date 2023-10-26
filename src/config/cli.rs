@@ -2,7 +2,9 @@
 use crate::config::*;
 use crate::device::trigger;
 use crate::imu;
+use crate::motion;
 use clap::{Args, Parser};
+use glam::Mat3;
 
 #[derive(Args, Debug)]
 #[group(required = false, requires_all = ["model", "i2c_dev", "i2c_addr"])]
@@ -17,12 +19,6 @@ struct IMU {
     #[arg(long, default_value_t = imu::Config::default().i2c_addr)]
     i2c_addr: u8,
 }
-
-// impl std::fmt::Display for Option<String> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-//         write!(f, "{}", self.unwrap_or("None"))
-//     }
-// }
 
 #[derive(Args, Debug, Clone)]
 #[group(required = false)]
@@ -64,11 +60,11 @@ struct Device {
     #[command(flatten)]
     trigger: Trigger,
     /// [deg] acute angle between rear of screen and plane of keyboard
-    #[arg(short = 'd', long, value_name = "DEGREES", default_value_t = 45.)]
+    #[arg(short = 'c', long, value_name = "DEGREES", default_value_t = 45.)]
     screen: f32,
-    // /// [-] flattened 3x3 transformation matrix for mapping device axes
-    // #[arg(short = 'o', long, num_args = 9, default_values_t = vec![1,0,0,0,-1,0,0,0,-1])]
-    // orient: Vec<i8>, //using vec until arrays are supported by clap
+    /// [-] flattened 3x3 transformation matrix for mapping device axes
+    #[arg(short = 'o', long, num_args = 9, value_name = "#", value_delimiter = ',', default_values_t = vec![1.,0.,0.,0.,-1.,0.,0.,0.,-1.])]
+    orient: Vec<f32>, //using vec until arrays are supported by clap
 }
 
 #[derive(Parser, Debug)]
@@ -85,6 +81,9 @@ pub struct CLI {
     /// [Hz] update frequency
     #[arg(short = 'f', long, default_value_t = 40.0)]
     freq: f32,
+    /// motion frame
+    #[arg(short = 'F', long, value_enum, default_value_t = super::ConfigUser::default().frame)]
+    frame: motion::Frame,
 }
 
 impl Config {
@@ -99,11 +98,12 @@ impl Config {
             device: ConfigDevice {
                 screen: args.device.screen,
                 trigger: args.device.trigger.into(),
-                // orient: args.orient.try_into().map_err(|_| ConfigError::CLIMapping)?,
+                orient: Mat3::from_cols_slice(args.device.orient.as_slice()),
             },
             user: ConfigUser {
                 scale: args.scale,
                 freq: args.freq,
+                frame: motion::Frame::Direct,
             },
         }
     }

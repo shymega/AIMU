@@ -2,6 +2,7 @@
 #[allow(unused)]
 use autocxx::prelude::*;
 use glam::IVec2;
+use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 
 include_cpp! {
@@ -10,7 +11,13 @@ include_cpp! {
     safety!(unsafe_ffi)
 }
 
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[cfg(feature = "cli")]
+#[derive(clap::ValueEnum)]
+#[value(rename_all = "lowercase")]
 pub enum Frame {
+    #[default]
+    Direct,
     Local,
     Player,
 }
@@ -33,16 +40,24 @@ impl Motion {
     }
 
     pub fn process(&mut self, a: [f32; 3], g: [f32; 3], dt: f32) -> IVec2 {
-        // FIXME: is there a more elegant way to unpack arrays?
-        self.motion
-            .pin_mut()
-            .ProcessMotion(g[0], g[1], g[2], a[0], a[1], a[2], dt);
-        self.frame(dt)
-    }
-
-    //FIXME: select frame using generics
-    fn frame(&mut self, dt: f32) -> IVec2 {
-        self.frame_local(dt)
+        match self.frame {
+            Frame::Direct => IVec2::new(
+                ((g[0] * self.sincos.1 - (-g[2]) * self.sincos.0) * self.scale * dt) as i32,
+                ((-g[1]) * self.scale * dt) as i32,
+            ),
+            Frame::Local => {
+                self.motion
+                    .pin_mut()
+                    .ProcessMotion(g[0], g[1], g[2], a[0], a[1], a[2], dt);
+                self.frame_local(dt)
+            }
+            Frame::Player => {
+                self.motion
+                    .pin_mut()
+                    .ProcessMotion(g[0], g[1], g[2], a[0], a[1], a[2], dt);
+                self.frame_player(dt)
+            }
+        }
     }
 
     fn frame_local(&mut self, dt: f32) -> IVec2 {

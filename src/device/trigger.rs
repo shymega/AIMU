@@ -47,12 +47,6 @@ pub struct Trigger {
     state: Arc<Mutex<i32>>,
 }
 
-// impl From<Config> for Trigger {
-//     fn from(val: Config) -> Self {
-//         Self::new(&val.device, val.event, val.thresh)
-//     }
-// }
-
 impl Trigger {
     pub fn new(cfg: Config) -> Self {
         Self {

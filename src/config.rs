@@ -3,6 +3,7 @@ pub mod cli;
 
 use crate::device::Config as ConfigDevice;
 use crate::imu::Config as ConfigIMU;
+use crate::motion::Frame;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
@@ -21,7 +22,7 @@ pub struct ConfigUser {
     pub scale: f32,
     /// [Hz] update frequency
     pub freq: f32,
-    // pub frame: String,
+    pub frame: Frame,
 }
 
 impl Default for ConfigUser {
@@ -29,6 +30,7 @@ impl Default for ConfigUser {
         Self {
             scale: 50.,
             freq: 40.,
+            frame: Frame::default(),
         }
     }
 }

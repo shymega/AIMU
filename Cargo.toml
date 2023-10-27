@@ -20,7 +20,7 @@ anyhow = "1.0.75"
 toml = "0.8.4"
 serde = { version = "1.0.189", features = ["derive"] }
 glam = { version = "0.24.2", features = ["serde"] }
-gamepad_motion = "0.1.0"
+gamepad_motion = "0.1.2"
 
 [features]
 default = ["dynamic"]

@@ -22,7 +22,7 @@ fn main() -> Result<()> {
 
     //TODO: implement runtime switch for selecting frame based on cfg.user.frame
     // let mut motion = motion::Motion<motion::Frame::Local>::new(cfg.user.scale, cfg.device.screen);
-    let mut motion = motion::Motion::new(cfg.user.scale, cfg.device.screen, motion::Frame::Local);
+    let mut motion = motion::Motion::new(cfg.device.screen, motion::Frame::Local);
 
     #[cfg(not(feature = "dynamic"))]
     let mut imu = IMUs::new(&cfg.imu)?;
@@ -38,8 +38,7 @@ fn main() -> Result<()> {
 
     loop {
         let data = imu.data()?;
-        let xy_mot = motion.process(a, g, dt, cfg.user.scale);
-        // let xy_mot = motion.process(data.a.into(), data.g.into(), data.t);
+        let xy_mot = motion.process(data.g, data.a, data.t, &cfg.user.scale);
         if trig.check() {
             vdev.update(xy_mot.x, xy_mot.y)?;
         }

@@ -3,7 +3,7 @@ use gamepad_motion::GamepadMotion;
 use glam::{swizzles::*, IVec2, Mat3, Vec3};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Debug, Serialize, Deserialize)]
 #[cfg(feature = "cli")]
 #[derive(clap::ValueEnum)]
 #[value(rename_all = "lowercase")]

@@ -27,7 +27,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             imu: ConfigIMU {
-                model: crate::imu::Unit::BMI260,
+                model: crate::imu::IMUs::BMI260,
                 i2c_dev: PathBuf::from("/dev/i2c-2"),
                 i2c_addr: 0x69,
             },

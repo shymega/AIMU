@@ -1,3 +1,4 @@
+use anyhow::{Error, Result};
 use evdev::{self, AbsoluteAxisType, Device, InputEventKind};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -51,12 +52,20 @@ impl TryFrom<Config> for Trigger {
     type Error = Error;
     fn try_from(cfg: Config) -> Result<Self> {
         Ok(Self {
+            device: cfg.device.and_then(|name| {
+                evdev::enumerate()
+                    .map(|t| t.1)
+                    .find(|d| d.name().unwrap() == name)
+                    .map(|d| Arc::new(Mutex::new(d)))
+            }),
             event: Arc::new(Mutex::new(cfg.event.into())),
             thresh: cfg.thresh,
             state: Arc::new(Mutex::new(0)),
-        }
+        })
     }
+}
 
+impl Trigger {
     pub fn task(&self) {
         let state = Arc::clone(&self.state);
         match &self.device {

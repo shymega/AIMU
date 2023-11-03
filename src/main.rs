@@ -31,14 +31,14 @@ fn main() -> Result<()> {
     imu.init()?;
 
     let mut vdev = VMouse::new()?;
-    let trig = Trigger::new(cfg.device.trigger);
-    let update_interval = Duration::from_micros((1e6 / cfg.user.freq) as u64);
+    let trig = Trigger::try_from(cfg.device.trigger)?;
+    let update_interval = Duration::from_micros((1e6 / cfg.motion.freq) as u64);
 
     trig.task();
 
     loop {
         let data = imu.data()?;
-        let xy_mot = motion.process(data.g, data.a, data.t, &cfg.user.scale);
+        let xy_mot = motion.process(data.g, data.a, data.t, &cfg.motion.scale);
         if trig.check() {
             vdev.update(xy_mot.x, xy_mot.y)?;
         }

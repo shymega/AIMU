@@ -5,6 +5,7 @@ use glam::Vec3;
 use std::{thread::sleep, time::Duration};
 
 pub type BMI260I2C = bmi270::Bmi270<bmi270::interface::I2cInterface<hal::I2cdev>>;
+pub type BMI260 = BMI<BMI260I2C>;
 
 impl<CommE, CsE> From<bmi270::Error<CommE, CsE>> for Error {
     fn from(_: bmi270::Error<CommE, CsE>) -> Self {
@@ -12,7 +13,7 @@ impl<CommE, CsE> From<bmi270::Error<CommE, CsE>> for Error {
     }
 }
 
-impl BMI<BMI260I2C> {
+impl BMI260 {
     const SEC_PER_TICK: f32 = 39e-6; // [s/tick]
 
     fn dt(&self, t: u32) -> f32 {
@@ -36,7 +37,7 @@ impl BMI<BMI260I2C> {
     }
 }
 
-impl IMU for BMI<BMI260I2C> {
+impl IMU for BMI260 {
     fn new(i2c_dev: &str, i2c_addr: u8) -> Result<Self, Error> {
         Ok(Self {
             drv: bmi270::Bmi270::new_i2c(

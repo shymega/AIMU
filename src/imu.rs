@@ -1,8 +1,8 @@
 #![allow(clippy::new_ret_no_self)]
 #![allow(clippy::upper_case_acronyms)]
-#[cfg(any(feature = "bmi160", feature = "dynamic"))]
+#[cfg(feature = "bmi160")]
 pub mod bmi160;
-#[cfg(any(feature = "bmi260", feature = "dynamic"))]
+#[cfg(feature = "bmi260")]
 pub mod bmi260;
 use anyhow::Result;
 use glam::Vec3;
@@ -28,7 +28,9 @@ pub enum Error {
 #[derive(clap::ValueEnum)]
 #[value(rename_all = "lowercase")]
 pub enum IMUs {
+    #[cfg(feature = "bmi160")]
     BMI160,
+    #[cfg(feature = "bmi260")]
     BMI260,
 }
 
@@ -36,11 +38,13 @@ impl IMUs {
     #[cfg(feature = "dynamic")]
     pub fn new(cfg: &Config) -> Result<Box<dyn IMU>, Error> {
         match cfg.model {
-            Self::BMI160 => Ok(Box::new(BMI::<bmi160::BMI160I2C>::new(
+            #[cfg(feature = "bmi160")]
+            Self::BMI160 => Ok(Box::new(bmi160::BMI160::new(
                 cfg.i2c_dev.to_str().unwrap(),
                 cfg.i2c_addr,
             )?)),
-            Self::BMI260 => Ok(Box::new(BMI::<bmi260::BMI260I2C>::new(
+            #[cfg(feature = "bmi260")]
+            Self::BMI260 => Ok(Box::new(bmi260::BMI260::new(
                 cfg.i2c_dev.to_str().unwrap(),
                 cfg.i2c_addr,
             )?)),
@@ -49,12 +53,12 @@ impl IMUs {
     }
 
     #[cfg(all(feature = "bmi160", not(feature = "dynamic")))]
-    pub fn new(cfg: &Config) -> BMI<bmi160::BMI160I2C> {
+    pub fn new(cfg: &Config) -> bmi160::BMI160 {
         IMU::new(cfg.i2c_dev.to_str().unwrap(), cfg.i2c_addr)?
     }
 
     #[cfg(all(feature = "bmi260", not(feature = "dynamic")))]
-    pub fn new(cfg: &Config) -> BMI<bmi260::BMI260I2C> {
+    pub fn new(cfg: &Config) -> bmi260::BMI260 {
         IMU::new(cfg.i2c_dev.to_str().unwrap(), cfg.i2c_addr)?
     }
 }

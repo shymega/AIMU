@@ -48,17 +48,12 @@ impl From<Trigger> for trigger::Config {
     }
 }
 
-impl From<Trigger> for trigger::Trigger {
-    fn from(val: Trigger) -> Self {
-        Self::new(val.into())
-    }
-}
-
 #[derive(Args, Debug)]
 #[group(required = false)]
 struct Device {
     #[command(flatten)]
     trigger: Trigger,
+}
 
 #[derive(Args, Debug)]
 #[group(required = false)]
@@ -102,7 +97,7 @@ impl Into<Config> for CLI {
                 i2c_addr: self.imu.i2c_addr,
             },
             device: ConfigDevice {
-                trigger: args.device.trigger.into(),
+                trigger: self.device.trigger.into(),
             },
             motion: ConfigMotion {
                 scale: self.motion.scale,

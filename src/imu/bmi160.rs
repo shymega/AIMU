@@ -5,6 +5,7 @@ use glam::Vec3;
 use std::fmt::Display;
 
 pub type BMI160I2C = bmi160::Bmi160<bmi160::interface::I2cInterface<hal::I2cdev>>;
+pub type BMI160 = BMI<BMI160I2C>;
 
 impl<CommE: Display, CsE: Display> From<bmi160::Error<CommE, CsE>> for Error {
     fn from(_: bmi160::Error<CommE, CsE>) -> Self {
@@ -12,7 +13,7 @@ impl<CommE: Display, CsE: Display> From<bmi160::Error<CommE, CsE>> for Error {
     }
 }
 
-impl BMI<BMI160I2C> {
+impl BMI160 {
     const SEC_PER_TICK: f32 = 39e-6; // [s/tick]
     const BITMASK_24: u32 = 0xffffff;
 
@@ -21,7 +22,7 @@ impl BMI<BMI160I2C> {
     }
 }
 
-impl IMU for BMI<BMI160I2C> {
+impl IMU for BMI160 {
     fn new(i2c_dev: &str, i2c_addr: u8) -> Result<Self, Error> {
         Ok(Self {
             drv: bmi160::Bmi160::new_with_i2c(

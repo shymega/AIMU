@@ -1,9 +1,10 @@
 [package]
 name = "aimu"
-version = "0.2.2"
+version = "0.2.3"
 author = "Adam Wahab"
 about = "IMU motion control."
 description = "Motion control for handheld computers equipped with a BMI160/BMI260 IMU."
+keywords = ["imu", "gyro", "gamepad", "motion", "handheld", "bmi160", "bmi260"]
 license-file = "LICENSE"
 repository = "https://gitlab.com/awahab/aimu"
 edition = "2021"

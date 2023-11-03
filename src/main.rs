@@ -1,12 +1,12 @@
 #![allow(dead_code)]
-
 extern crate linux_embedded_hal as hal;
-
 mod config;
 mod device;
 mod imu;
 mod motion;
 use anyhow::Result;
+#[cfg(feature = "cli")]
+use clap::Parser;
 use config::Config;
 use device::{trigger::Trigger, vmouse::VMouse, VDev};
 use imu::IMUs;
@@ -16,13 +16,13 @@ fn main() -> Result<()> {
     #[cfg(not(feature = "cli"))]
     let cfg = Config::default();
     #[cfg(feature = "cli")]
-    let cfg = Config::from_cli();
+    let cfg: Config = crate::config::cli::CLI::parse().into();
 
     println!("{}", toml::to_string_pretty(&cfg).unwrap());
 
     //TODO: implement runtime switch for selecting frame based on cfg.user.frame
     // let mut motion = motion::Motion<motion::Frame::Local>::new(cfg.user.scale, cfg.device.screen);
-    let mut motion = motion::Motion::new(cfg.device.screen, motion::Frame::Local);
+    let mut motion = motion::Motion::new(&cfg.motion);
 
     #[cfg(not(feature = "dynamic"))]
     let mut imu = IMUs::new(&cfg.imu)?;

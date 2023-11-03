@@ -14,6 +14,32 @@ pub enum Frame {
     Player,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Config {
+    /// [-] arbitrary scale factor
+    pub scale: f32,
+    /// [Hz] update frequency
+    pub freq: f32,
+    /// motion processor frame of reference
+    pub frame: Frame,
+    /// [deg] acute angle between plane of keyboard and rear of screen
+    pub screen: f32,
+    /// orientation array [xx, xy, xz, yx, yy, yz, zx, zy, zz]
+    pub orient: Mat3,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            scale: 50.,
+            freq: 40.,
+            frame: Frame::default(),
+            screen: 45.,
+            orient: Mat3::from_cols_array(&[1., 0., 0., 0., -1., 0., 0., 0., -1.]).transpose(),
+        }
+    }
+}
+
 pub struct Motion {
     motion: GamepadMotion,
     frame: Frame,
@@ -21,11 +47,11 @@ pub struct Motion {
 }
 
 impl Motion {
-    pub fn new(screen: f32, frame: Frame) -> Self {
-        let sincos = screen.to_radians().sin_cos();
+    pub fn new(cfg: &Config) -> Self {
+        let sincos = cfg.screen.to_radians().sin_cos();
         Self {
             motion: GamepadMotion::new(),
-            frame,
+            frame: cfg.frame,
             transform: Mat3::from_cols(Vec3::X, Vec3::NEG_Y, Vec3::NEG_Z)
                 .transpose()
                 .mul_mat3(

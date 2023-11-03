@@ -59,6 +59,19 @@ impl From<Trigger> for trigger::Trigger {
 struct Device {
     #[command(flatten)]
     trigger: Trigger,
+
+#[derive(Args, Debug)]
+#[group(required = false)]
+struct Motion {
+    /// [-] motion scale factor
+    #[arg(short = 's', long, default_value_t = 50.0)]
+    scale: f32,
+    /// [Hz] update frequency
+    #[arg(short = 'f', long, default_value_t = 40.0)]
+    freq: f32,
+    /// motion frame
+    #[arg(short = 'F', long, value_enum, default_value_t = motion::Config::default().frame)]
+    frame: motion::Frame,
     /// [deg] acute angle between rear of screen and plane of keyboard
     #[arg(short = 'c', long, value_name = "DEGREES", default_value_t = 45.)]
     screen: f32,
@@ -75,35 +88,28 @@ pub struct CLI {
     imu: IMU,
     #[command(flatten)]
     device: Device,
-    /// [-] motion scale factor
-    #[arg(short = 's', long, default_value_t = 50.0)]
-    scale: f32,
-    /// [Hz] update frequency
-    #[arg(short = 'f', long, default_value_t = 40.0)]
-    freq: f32,
-    /// motion frame
-    #[arg(short = 'F', long, value_enum, default_value_t = super::ConfigUser::default().frame)]
-    frame: motion::Frame,
+    #[command(flatten)]
+    motion: Motion,
 }
 
-impl Config {
-    pub fn from_cli() -> Self {
-        let args = CLI::parse();
-        Self {
+impl Into<Config> for CLI {
+    fn into(self) -> Config {
+        // let args = CLI::parse();
+        Config {
             imu: ConfigIMU {
-                model: args.imu.model,
-                i2c_dev: args.imu.i2c_dev,
-                i2c_addr: args.imu.i2c_addr,
+                model: self.imu.model,
+                i2c_dev: self.imu.i2c_dev,
+                i2c_addr: self.imu.i2c_addr,
             },
             device: ConfigDevice {
-                screen: args.device.screen,
                 trigger: args.device.trigger.into(),
-                orient: Mat3::from_cols_slice(args.device.orient.as_slice()),
             },
-            user: ConfigUser {
-                scale: args.scale,
-                freq: args.freq,
+            motion: ConfigMotion {
+                scale: self.motion.scale,
+                freq: self.motion.freq,
                 frame: motion::Frame::Direct,
+                screen: self.motion.screen,
+                orient: Mat3::from_cols_slice(self.motion.orient.as_slice()),
             },
         }
     }

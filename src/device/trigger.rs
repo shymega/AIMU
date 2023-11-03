@@ -47,15 +47,10 @@ pub struct Trigger {
     state: Arc<Mutex<i32>>,
 }
 
-impl Trigger {
-    pub fn new(cfg: Config) -> Self {
-        Self {
-            device: cfg.device.and_then(|dev| {
-                evdev::enumerate()
-                    .map(|t| t.1)
-                    .find(|d| d.name().unwrap() == dev)
-                    .map(|dev| Arc::new(Mutex::new(dev)))
-            }),
+impl TryFrom<Config> for Trigger {
+    type Error = Error;
+    fn try_from(cfg: Config) -> Result<Self> {
+        Ok(Self {
             event: Arc::new(Mutex::new(cfg.event.into())),
             thresh: cfg.thresh,
             state: Arc::new(Mutex::new(0)),

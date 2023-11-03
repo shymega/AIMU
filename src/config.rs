@@ -3,7 +3,7 @@ pub mod cli;
 
 use crate::device::Config as ConfigDevice;
 use crate::imu::Config as ConfigIMU;
-use crate::motion::Frame;
+use crate::motion::Config as ConfigMotion;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
@@ -17,41 +17,22 @@ pub enum ConfigError {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ConfigUser {
-    /// [-] arbitrary scale factor
-    pub scale: f32,
-    /// [Hz] update frequency
-    pub freq: f32,
-    pub frame: Frame,
-}
-
-impl Default for ConfigUser {
-    fn default() -> Self {
-        Self {
-            scale: 50.,
-            freq: 40.,
-            frame: Frame::default(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub imu: ConfigIMU,
     pub device: ConfigDevice,
-    pub user: ConfigUser,
+    pub motion: ConfigMotion,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             imu: ConfigIMU {
-                model: crate::imu::IMUs::BMI260,
+                model: crate::imu::Unit::BMI260,
                 i2c_dev: PathBuf::from("/dev/i2c-2"),
                 i2c_addr: 0x69,
             },
             device: ConfigDevice::default(),
-            user: ConfigUser::default(),
+            motion: ConfigMotion::default(),
         }
     }
 }

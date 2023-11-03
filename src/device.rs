@@ -24,8 +24,6 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            screen: 45.,
-            orient: Mat3::from_cols_array(&[1., 0., 0., 0., -1., 0., 0., 0., -1.]).transpose(),
             trigger: trigger::Config::default(),
         }
     }
